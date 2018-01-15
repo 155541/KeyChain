@@ -1,0 +1,283 @@
+<?xml version="1.0" encoding="utf-8"?>
+<android.support.v4.widget.NestedScrollView
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    app:layout_behavior="@string/appbar_scrolling_view_behavior"
+    tools:context="revolhope.splanes.com.keystore.views.UpdateKeyActivity"
+    tools:showIn="@layout/activity_update_key">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:layout_margin="@dimen/text_margin"
+        android:orientation="vertical">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="12dp"
+            android:layout_marginStart="12dp"
+            android:layout_marginEnd="12dp"
+            android:orientation="horizontal">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:textSize="18sp"
+                android:textColor="@color/colorPrimaryDark"
+                android:text="@string/prompt_information"/>
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="1dp"
+                android:layout_gravity="center"
+                android:layout_marginStart="12dp"
+                android:background="@color/colorAccent"/>
+        </LinearLayout>
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="24dp"
+            android:orientation="horizontal">
+
+            <Space
+                android:layout_width="0dp"
+                android:layout_height="0dp"
+                android:layout_weight=".25"/>
+
+            <TextView
+                android:id="@+id/prompt_idName"
+                android:layout_width="0dp"
+                android:layout_height="match_parent"
+                android:layout_weight=".5"
+                android:gravity="center_vertical"
+                android:text="@string/prompt_id_name"
+                android:textSize="17sp"
+                android:textColor="@android:color/black"/>
+
+            <EditText
+                android:id="@+id/editTextKeyNameId"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:textColor="@color/colorAccent"
+                android:textSize="17sp"
+                android:inputType="textCapSentences"/>
+
+            <Space
+                android:layout_width="0dp"
+                android:layout_height="0dp"
+                android:layout_weight=".25"/>
+
+        </LinearLayout>
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal">
+
+            <Space
+                android:layout_width="0dp"
+                android:layout_height="0dp"
+                android:layout_weight=".25"/>
+
+            <TextView
+                android:id="@+id/prompt_User"
+                android:layout_width="0dp"
+                android:layout_height="match_parent"
+                android:layout_weight=".5"
+                android:gravity="center_vertical"
+                android:textSize="17sp"
+                android:textColor="@android:color/black"
+                android:text="@string/prompt_user"/>
+
+            <EditText
+                android:id="@+id/editTextUser"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:textSize="17sp"
+                android:textColor="@color/colorAccent"
+                android:hint="@string/hint_optional"
+                android:inputType="textCapSentences"/>
+
+            <Space
+                android:layout_width="0dp"
+                android:layout_height="0dp"
+                android:layout_weight=".25"/>
+
+        </LinearLayout>
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal">
+
+            <Space
+                android:layout_width="0dp"
+                android:layout_height="0dp"
+                android:layout_weight=".25"/>
+
+            <TextView
+                android:id="@+id/prompt_Brief"
+                android:layout_width="0dp"
+                android:layout_height="match_parent"
+                android:layout_weight=".5"
+                android:gravity="center_vertical"
+                android:text="@string/prompt_brief"
+                android:textColor="@android:color/black"
+                android:textSize="17sp" />
+
+            <EditText
+                android:id="@+id/editTextBrief"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:textSize="17sp"
+                android:textColor="@color/colorAccent"
+                android:inputType="textCapSentences"
+                android:hint="@string/hint_optional"/>
+
+            <Space
+                android:layout_width="0dp"
+                android:layout_height="0dp"
+                android:layout_weight=".25"/>
+        </LinearLayout>
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:layout_marginBottom="24dp">
+
+            <Space
+                android:layout_width="0dp"
+                android:layout_height="0dp"
+                android:layout_weight=".25"/>
+
+            <TextView
+                android:id="@+id/prompt_Key"
+                android:layout_width="0dp"
+                android:layout_height="match_parent"
+                android:layout_weight=".5"
+                android:gravity="center_vertical"
+                android:text="@string/prompt_key"
+                android:textColor="@android:color/black"
+                android:textSize="17sp" />
+
+            <EditText
+                android:id="@+id/editText_key"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:textSize="17sp"
+                android:textColor="@android:color/darker_gray"
+                android:clickable="false"
+                android:cursorVisible="false"
+                android:focusable="false"
+                android:focusableInTouchMode="false"/>
+
+            <Space
+                android:layout_width="0dp"
+                android:layout_height="0dp"
+                android:layout_weight=".25"/>
+        </LinearLayout>
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="12dp"
+            android:layout_marginEnd="12dp"
+            android:orientation="horizontal">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:textSize="18sp"
+                android:textColor="@color/colorPrimaryDark"
+                android:text="@string/prompt_configuration"/>
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="1dp"
+                android:layout_gravity="center"
+                android:layout_marginStart="12dp"
+                android:background="@color/colorAccent"/>
+        </LinearLayout>
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:layout_marginTop="24dp">
+
+            <Space
+                android:layout_width="0dp"
+                android:layout_height="0dp"
+                android:layout_weight=".25"/>
+
+            <TextView
+                android:id="@+id/prompt_KeyLength"
+                android:layout_width="0dp"
+                android:layout_height="match_parent"
+                android:layout_weight=".5"
+                android:gravity="center_vertical"
+                android:textSize="17sp"
+                android:textColor="@android:color/black"
+                android:text="@string/prompt_key_length"/>
+
+            <Spinner
+                android:id="@+id/spinnerLength"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:textSize="17sp"/>
+
+            <Space
+                android:layout_width="0dp"
+                android:layout_height="0dp"
+                android:layout_weight=".25"/>
+        </LinearLayout>
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:layout_marginTop="24dp">
+
+            <Space
+                android:layout_width="0dp"
+                android:layout_height="0dp"
+                android:layout_weight=".25"/>
+
+            <TextView
+                android:id="@+id/prompt_KeyType"
+                android:layout_width="0dp"
+                android:layout_height="match_parent"
+                android:layout_weight=".5"
+                android:gravity="center_vertical"
+                android:textSize="17sp"
+                android:textColor="@android:color/black"
+                android:text="@string/prompt_key_type"/>
+
+            <Spinner
+                android:id="@+id/spinnerType"
+                android:layout_width="0dp"
+                android:layout_weight="1"
+                android:layout_height="wrap_content"
+                android:textSize="17sp"/>
+
+            <Space
+                android:layout_width="0dp"
+                android:layout_height="0dp"
+                android:layout_weight=".25"/>
+        </LinearLayout>
+
+    </LinearLayout>
+
+
+</android.support.v4.widget.NestedScrollView>

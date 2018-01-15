@@ -1,0 +1,42 @@
+{
+  "project_info": {
+    "project_number": "421252677096",
+    "firebase_url": "https://keychain-4b60a.firebaseio.com",
+    "project_id": "keychain-4b60a",
+    "storage_bucket": "keychain-4b60a.appspot.com"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:421252677096:android:fa46dc6cf155930a",
+        "android_client_info": {
+          "package_name": "revolhope.splanes.com.keystore"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "421252677096-drbnatqd4d02b4hk4h9jmb148ob9g8o8.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDHT_b6WsmOjDoJuuhWxuLeEnH6hI2GYNw"
+        }
+      ],
+      "services": {
+        "analytics_service": {
+          "status": 1
+        },
+        "appinvite_service": {
+          "status": 1,
+          "other_platform_oauth_client": []
+        },
+        "ads_service": {
+          "status": 2
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
