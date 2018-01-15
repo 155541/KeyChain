@@ -177,7 +177,7 @@ public class Firebase {
                                     
                                     if(!exists){
 
-                                        
+
                                         database.insertFolder(); // todo: Implement method
                                     }
                                     break;
