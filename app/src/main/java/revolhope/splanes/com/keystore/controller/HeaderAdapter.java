@@ -11,7 +11,10 @@ import android.widget.TextView;
 import java.util.ArrayList;
 
 import revolhope.splanes.com.keystore.R;
-import revolhope.splanes.com.keystore.model.HeaderWrapper;
+import revolhope.splanes.com.keystore.model.Content;
+import revolhope.splanes.com.keystore.model.Folder;
+import revolhope.splanes.com.keystore.model.Header;
+import revolhope.splanes.com.keystore.model.interfaces.HeaderVisitor;
 import revolhope.splanes.com.keystore.model.interfaces.IOnClickCallback;
 
 /**
@@ -21,7 +24,7 @@ import revolhope.splanes.com.keystore.model.interfaces.IOnClickCallback;
 public class HeaderAdapter extends RecyclerView.Adapter<HeaderAdapter.HeaderHolder> {
 
     private IOnClickCallback onClickCallback;
-    private ArrayList<HeaderWrapper> dataset;
+    private ArrayList<Header> dataSet;
     private Context context;
 
     public HeaderAdapter(Context context, IOnClickCallback onClickCallback) {
@@ -45,24 +48,40 @@ public class HeaderAdapter extends RecyclerView.Adapter<HeaderAdapter.HeaderHold
     public void onBindViewHolder(HeaderAdapter.HeaderHolder holder, int position) {
 
 
-        if(position >= dataset.size()) return;
-        HeaderWrapper header = dataset.get(position);
+        if(position >= dataSet.size()) return;
+        Header header = dataSet.get(position);
         if(header == null) return;
 
-        holder.textViewName.setText(header.getName());
+        boolean isFolder = header.checkClass(new HeaderVisitor<Boolean>() {
+            @Override
+            public Boolean isFolder(Folder folder) {
+                return Boolean.TRUE;
+            }
+
+            @Override
+            public Boolean isContent(Content content) {
+                return Boolean.FALSE;
+            }
+        });
+
+        holder.textViewName.setText(header.getPlainName());
         holder.ivIcon.setBackground(
-                header.isFolder() ?
-                context.getDrawable(R.drawable.ic_folder_black_24dp): context.getDrawable(R.drawable.ic_vpn_key_black_24dp)
+                isFolder ?
+                        context.getDrawable(R.drawable.ic_folder_black_24dp) :
+                        context.getDrawable(R.drawable.ic_vpn_key_black_24dp)
         );
 
     }
 
     @Override
     public int getItemCount() {
-        return dataset.size();
+        return dataSet.size();
     }
 
-    public void setDataset(ArrayList<HeaderWrapper> dataset){ this.dataset= dataset; }
+    public void setDataSet(ArrayList<Header> dataSet){
+        if(dataSet == null) this.dataSet = new ArrayList<>();
+        else this.dataSet = dataSet;
+    }
 
     class HeaderHolder extends RecyclerView.ViewHolder{
 
@@ -75,7 +94,7 @@ public class HeaderAdapter extends RecyclerView.Adapter<HeaderAdapter.HeaderHold
             view.setOnClickListener(new View.OnClickListener() {
                 @Override
                 public void onClick(View view) {
-                    onClickCallback.onHeaderHolderClick(dataset.get(getAdapterPosition()));
+                    onClickCallback.onHeaderHolderClick(dataSet.get(getAdapterPosition()));
                 }
             });
 
@@ -83,7 +102,7 @@ public class HeaderAdapter extends RecyclerView.Adapter<HeaderAdapter.HeaderHold
                 @Override
                 public boolean onLongClick(View view) {
 
-                    onClickCallback.onHeaderHolderLongClick(dataset.get(getAdapterPosition()));
+                    onClickCallback.onHeaderHolderLongClick(dataSet.get(getAdapterPosition()));
                     return true;
                 }
             });

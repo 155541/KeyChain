@@ -20,7 +20,6 @@ import revolhope.splanes.com.keystore.views.StoreActivity;
 
 public class Fingerprint extends FingerprintManager.AuthenticationCallback {
 
-    private CancellationSignal cancellationSignal;
     private Context context;
 
     public Fingerprint(Context context) {
@@ -29,7 +28,7 @@ public class Fingerprint extends FingerprintManager.AuthenticationCallback {
 
     public void startAuth(FingerprintManager manager, FingerprintManager.CryptoObject cryptoObject) {
 
-        cancellationSignal = new CancellationSignal();
+        CancellationSignal cancellationSignal = new CancellationSignal();
 
         if (ActivityCompat.checkSelfPermission(context, Manifest.permission.USE_FINGERPRINT) != PackageManager.PERMISSION_GRANTED) {
             Toast.makeText(context,"No permission for Fingerprint. It is needed!", Toast.LENGTH_LONG).show();
@@ -48,6 +47,7 @@ public class Fingerprint extends FingerprintManager.AuthenticationCallback {
         Toast.makeText(context,helpString, Toast.LENGTH_LONG).show();
     }
 
+
     @Override
     public void onAuthenticationSucceeded(FingerprintManager.AuthenticationResult result) {
 
@@ -57,8 +57,7 @@ public class Fingerprint extends FingerprintManager.AuthenticationCallback {
         }else{
             vibrator.vibrate(300);
         }
-        Firebase firebase = new Firebase(context);
-        firebase.signIn();
+
         Intent intent = new Intent(context, StoreActivity.class);
         context.startActivity(intent);
     }

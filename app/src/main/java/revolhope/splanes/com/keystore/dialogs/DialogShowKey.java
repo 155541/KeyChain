@@ -21,8 +21,7 @@ import android.widget.TextView;
 import android.widget.Toast;
 
 import revolhope.splanes.com.keystore.R;
-import revolhope.splanes.com.keystore.model.KeyData;
-import revolhope.splanes.com.keystore.views.NewKeyActivity;
+import revolhope.splanes.com.keystore.model.Content;
 import revolhope.splanes.com.keystore.views.UpdateKeyActivity;
 
 /**
@@ -31,7 +30,7 @@ import revolhope.splanes.com.keystore.views.UpdateKeyActivity;
 
 public class DialogShowKey extends DialogFragment {
 
-    private KeyData keyData;
+    private Content content;
 
 
     @NonNull
@@ -48,12 +47,12 @@ public class DialogShowKey extends DialogFragment {
         TextView key = view.findViewById(R.id.textView_key);
         Button copy = view.findViewById(R.id.btCopyKey);
 
-        if(keyData != null){
+        if(content != null){
 
-            name.setText(keyData.getNameID());
-            user.setText(keyData.getUser());
-            brief.setText(keyData.getBrief());
-            key.setText(keyData.getKey());
+            name.setText(content.getPlainName());
+            user.setText(content.getPlainUser());
+            brief.setText(content.getPlainBrief());
+            key.setText(content.getPlainKey());
 
         }else{
             Toast.makeText(getContext(),"Ouch.. Some getting the key went wrong",Toast.LENGTH_LONG).show();
@@ -63,7 +62,7 @@ public class DialogShowKey extends DialogFragment {
             @Override
             public void onClick(View view) {
                 ClipboardManager clipboardManager = (ClipboardManager) getContext().getSystemService(Context.CLIPBOARD_SERVICE);
-                ClipData clip = ClipData.newPlainText("Key",keyData.getKey());
+                ClipData clip = ClipData.newPlainText("Content",content.getPlainKey());
                 clipboardManager.setPrimaryClip(clip);
                 Toast.makeText(getContext(),"Key copied to clipboard",Toast.LENGTH_SHORT).show();
             }
@@ -78,7 +77,7 @@ public class DialogShowKey extends DialogFragment {
                     @Override
                     public void onClick(DialogInterface dialogInterface, int i) {
                         Intent intent = new Intent(getContext(), UpdateKeyActivity.class);
-                        intent.putExtra("oldKeyData",keyData);
+                        intent.putExtra("oldContent",content);
                         startActivity(intent);
                     }
                 });
@@ -86,6 +85,6 @@ public class DialogShowKey extends DialogFragment {
         return builder.create();
     }
 
-    public void setKeyData(KeyData keyData) { this.keyData = keyData; }
+    public void setKeyData(Content content) { this.content = content; }
     public void setCallback(){} // todo: implement!
 }

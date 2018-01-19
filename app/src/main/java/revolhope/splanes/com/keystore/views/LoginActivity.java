@@ -45,7 +45,7 @@ public class LoginActivity extends AppCompatActivity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_login);
-        Toolbar toolbar = (Toolbar) findViewById(R.id.toolbar);
+        Toolbar toolbar = findViewById(R.id.toolbar);
         setSupportActionBar(toolbar);
 
         if(getSupportActionBar() != null){
@@ -57,7 +57,7 @@ public class LoginActivity extends AppCompatActivity {
         KeyguardManager keyguardManager = (KeyguardManager) getSystemService(KEYGUARD_SERVICE);
         fingerprintManager = (FingerprintManager) getSystemService(FINGERPRINT_SERVICE);
 
-        if (!keyguardManager.isKeyguardSecure()) {
+        if (keyguardManager != null && !keyguardManager.isKeyguardSecure()) {
             Toast.makeText(this, "Lock screen security not enabled in Settings", Toast.LENGTH_LONG).show();
             return;
         }
@@ -84,7 +84,7 @@ public class LoginActivity extends AppCompatActivity {
     @Override
     protected void onResume() {
         super.onResume();
-        fingerprint.startAuth(fingerprintManager, cryptoObject);
+        if(fingerprint != null) fingerprint.startAuth(fingerprintManager, cryptoObject);
     }
 
     private void generateKey() {
@@ -135,8 +135,7 @@ public class LoginActivity extends AppCompatActivity {
 
         try {
             keyStore.load(null);
-            SecretKey key = (SecretKey) keyStore.getKey("AppsKey",
-                    null);
+            SecretKey key = (SecretKey) keyStore.getKey("AppsKey", null);
             cipher.init(Cipher.ENCRYPT_MODE, key);
             return true;
         } catch (KeyPermanentlyInvalidatedException e) {

@@ -1,114 +1,134 @@
 package revolhope.splanes.com.keystore.helpers;
 
-import android.content.Context;
+
 import android.os.AsyncTask;
-
 import com.google.firebase.database.DataSnapshot;
-import com.google.firebase.database.DatabaseError;
-import com.google.firebase.database.DatabaseReference;
-import com.google.firebase.database.ValueEventListener;
-
-import java.util.ArrayList;
-
-import revolhope.splanes.com.keystore.model.FolderData;
-import revolhope.splanes.com.keystore.model.HeaderWrapper;
+import revolhope.splanes.com.keystore.model.Content;
+import revolhope.splanes.com.keystore.model.FireContentObj;
+import revolhope.splanes.com.keystore.model.FireFolderObj;
+import revolhope.splanes.com.keystore.model.Folder;
 import revolhope.splanes.com.keystore.model.interfaces.IFirebaseCallback;
 
-/**
- * Created by splanes on 12/1/18.
- **/
+import static revolhope.splanes.com.keystore.helpers.Firebase.ACTION_CREATE;
+import static revolhope.splanes.com.keystore.helpers.Firebase.ACTION_REMOVE;
+import static revolhope.splanes.com.keystore.helpers.Firebase.ACTION_UPDATE;
+import static revolhope.splanes.com.keystore.helpers.Firebase.OWNER;
 
-class SynchronizeAsyncTask extends AsyncTask<SynchronizeAsyncTask.Wrapper,Long,Boolean> {
 
+public class SynchronizeAsyncTask extends AsyncTask<DataSnapshot,Integer,Boolean> {
+
+    private Database database;
+    private boolean isFolder;
     private IFirebaseCallback callback;
 
     @Override
-    protected Boolean doInBackground(SynchronizeAsyncTask.Wrapper[] objects) {
-
-        ArrayList<HeaderWrapper> finalDataset = new ArrayList<>();
-
-
-        final Database database = new Database(objects[0].getContext());
-        DatabaseReference refFolders = objects[0].getRefFolder();
-        DatabaseReference refKeys = objects[0].getRefContent();
-
-        refFolders.addListenerForSingleValueEvent(new ValueEventListener() {
-            @Override
-            public void onDataChange(DataSnapshot dataSnapshot) {
-
-                for(DataSnapshot data : dataSnapshot.getChildren()){
-
-                    try{
-                        int folderId = Integer.parseInt(data.getKey());
-                        FolderData folder = (FolderData)data.getValue();
-
-
-
-                    }catch (NumberFormatException e){
-                        e.printStackTrace();
-                        return;
-                    }
-                }
-            }
-
-            @Override
-            public void onCancelled(DatabaseError databaseError) {
-            }
-        });
-
-        refKeys.addListenerForSingleValueEvent(new ValueEventListener() {
-            @Override
-            public void onDataChange(DataSnapshot dataSnapshot) {
-
-            }
-
-            @Override
-            public void onCancelled(DatabaseError databaseError) {
-            }
-        });
-
-
-
-
-
-        return Boolean.FALSE;
+    protected void onPostExecute(Boolean aBoolean) {
+        callback.onSynchronized(aBoolean);
     }
 
     @Override
-    protected void onPostExecute(Boolean sync) {
-
+    protected void onProgressUpdate(Integer... values) {
+        super.onProgressUpdate(values);
     }
 
-    public void setCallback(IFirebaseCallback callback) { this.callback = callback; }
+    @Override
+    protected Boolean doInBackground(DataSnapshot... dataSnapshots) {
 
-    Wrapper getWrapper(){
-        return new Wrapper();
+
+        boolean result = true;
+
+        for(DataSnapshot data : dataSnapshots[0].getChildren()) {
+
+            try {
+
+                FireFolderObj fireObj =
+                        isFolder ?
+                        data.getValue(FireFolderObj.class) : data.getValue(FireContentObj.class);
+
+                if(fireObj != null && fireObj.owner != OWNER){
+
+                    switch (fireObj.action){
+                        case ACTION_CREATE:
+
+                            if(isFolder) {
+                                if (!database.existsFolder(fireObj.id)) {
+                                    Folder folder = new Folder();
+                                    folder.setId(fireObj.id);
+                                    folder.setPlainName(fireObj.name); // todo: parse to byte[] with base64 + decrypt it
+                                    folder.setParentId(fireObj.idParent);
+
+                                    if (!database.insertFolder(folder)) result = false;
+                                }
+                            }else{
+                                if (!database.existsKey(fireObj.id)) {
+                                    FireContentObj contentObj = (FireContentObj)fireObj;
+                                    Content content = new Content();
+                                    content.setId(contentObj.id);
+                                    content.setPlainName(contentObj.name); // todo: parse to byte[] with base64 + decrypt it
+                                    content.setPlainUser(contentObj.getUser()); // todo: parse to byte[] with base64 + decrypt it
+                                    content.setPlainBrief(contentObj.getBrief()); // todo: parse to byte[] with base64 + decrypt it
+                                    content.setPlainKey(contentObj.getContent()); // todo: parse to byte[] with base64 + decrypt it
+                                    //content.setEnumLength(contentObj.getEnumLength()); // todo: parse String from contentObj to EnumLength
+                                    //content.setEnumType(contentObj.getEnumType()); // todo:  parse String from contentObj to EnumType
+                                    content.setParentId(contentObj.idParent);
+
+                                    if (!database.insertKey(content)) result = false;
+                                }
+                            }
+                            break;
+                        case ACTION_UPDATE:
+                            if(isFolder) {
+                                if (database.existsFolder(fireObj.id)) {
+                                    Folder folder = new Folder();
+                                    folder.setId(fireObj.id);
+                                    folder.setPlainName(fireObj.name); // todo: parse to byte[] with base64 + decrypt it
+                                    folder.setParentId(fireObj.idParent);
+
+                                    if (!database.updateFolder(folder)) result = false;
+                                }
+                            }else {
+                                if (!database.existsKey(fireObj.id)) {
+                                    FireContentObj contentObj = (FireContentObj) fireObj;
+                                    Content content = new Content();
+                                    content.setId(contentObj.id);
+                                    content.setPlainName(contentObj.name); // todo: parse to byte[] with base64 + decrypt it
+                                    content.setPlainUser(contentObj.getUser()); // todo: parse to byte[] with base64 + decrypt it
+                                    content.setPlainBrief(contentObj.getBrief()); // todo: parse to byte[] with base64 + decrypt it
+                                    content.setPlainKey(contentObj.getContent()); // todo: parse to byte[] with base64 + decrypt it
+                                    //content.setEnumLength(contentObj.getEnumLength()); // todo: parse String from contentObj to EnumLength
+                                    //content.setEnumType(contentObj.getEnumType()); // todo:  parse String from contentObj to EnumType
+                                    content.setParentId(contentObj.idParent);
+
+                                    if (!database.updateKey(content)) result = false;
+                                }
+                            }
+                            break;
+                        case ACTION_REMOVE:
+                            if(isFolder) {
+                                if (database.existsFolder(fireObj.id)) {
+                                    Folder folder = new Folder();
+                                    folder.setId(fireObj.id);
+                                    folder.setPlainName(fireObj.name); // todo: parse to byte[] with base64 + decrypt it
+                                    folder.setParentId(fireObj.idParent);
+
+                                    if (!database.removeFolder(folder)) result = false;
+                                }
+                            }else if(!database.removeKey(fireObj.id)) result = false;
+                            break;
+                    }
+                }
+            }catch (NumberFormatException e){
+                e.printStackTrace();
+            }
+        }
+
+
+        return result ? Boolean.TRUE : Boolean.FALSE;
     }
 
-    class Wrapper{
+    void setDatabase(Database database) { this.database = database; }
 
-        private Context context;
-        private DatabaseReference refFolder;
-        private DatabaseReference refContent;
+    void setIsFolder(boolean isFolder) { this.isFolder = isFolder; }
 
-        public Context getContext() {
-            return context;
-        }
-        public void setContext(Context context) {
-            this.context = context;
-        }
-        DatabaseReference getRefFolder() {
-            return refFolder;
-        }
-        void setRefFolder(DatabaseReference refFolder) {
-            this.refFolder = refFolder;
-        }
-        DatabaseReference getRefContent() {
-            return refContent;
-        }
-        void setRefContent(DatabaseReference refContent) {
-            this.refContent = refContent;
-        }
-
-    }
+    void setIFirebaseCallback(IFirebaseCallback callback) { this.callback = callback; }
 }

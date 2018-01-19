@@ -15,6 +15,7 @@ import android.view.View;
 import android.widget.EditText;
 
 import revolhope.splanes.com.keystore.R;
+import revolhope.splanes.com.keystore.model.Folder;
 import revolhope.splanes.com.keystore.model.interfaces.IDialogCallbacks;
 
 /**
@@ -34,6 +35,7 @@ public class DialogRenameFolder extends DialogFragment {
         final EditText newName = view.findViewById(R.id.editTextFolderName);
         final int id = getArguments().getInt("id");
         final String oldName = getArguments().getString("oldName");
+        final int idParent = getArguments().getInt("idParent");
 
         Spannable title = new SpannableString("Set new name for '" + oldName + "' folder");
         title.setSpan(new ForegroundColorSpan(getContext().getColor(R.color.colorAccent)),0,title.length(), Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
@@ -48,7 +50,12 @@ public class DialogRenameFolder extends DialogFragment {
                     @Override
                     public void onClick(DialogInterface dialogInterface, int i) {
                         if(callback != null && checkField(newName)){
-                            callback.onRenamedFolder(id, newName.getText().toString());
+
+                            Folder folder = new Folder();
+                            folder.setParentId(idParent);
+                            folder.setPlainName(newName.getText().toString());
+                            folder.setId(id);
+                            callback.onRenamedFolder(folder);
                         }
                     }
                 });

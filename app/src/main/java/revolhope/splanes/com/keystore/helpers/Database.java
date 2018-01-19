@@ -8,11 +8,17 @@ import android.database.sqlite.SQLiteOpenHelper;
 import android.support.annotation.Nullable;
 import android.widget.Toast;
 
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.io.ObjectInputStream;
+import java.io.ObjectOutputStream;
 import java.util.ArrayList;
-import java.util.Arrays;
+import java.util.concurrent.ThreadLocalRandom;
 
-import revolhope.splanes.com.keystore.model.HeaderWrapper;
-import revolhope.splanes.com.keystore.model.KeyData;
+import revolhope.splanes.com.keystore.model.Content;
+import revolhope.splanes.com.keystore.model.Folder;
+import revolhope.splanes.com.keystore.model.Header;
 
 /**
  * Created by splanes on 3/1/18.
@@ -31,21 +37,17 @@ public class Database extends SQLiteOpenHelper {
 
     // FOLDER'S COLUMNS
     private final static String FOLDER_ID = "FOLDER_ID";
-    private final static String FOLDER_NAME = "FOLDER_NAME";
     private final static String FOLDER_PARENT = "FOLDER_PARENT";
+    private final static String FOLDER_OBJ = "FOLDER_OBJ";
+    private final static String FOLDER_WRAPPED = "FOLDER_WRAPPED";
     private final static String FOLDER_IV = "FOLDER_IV";
 
     // KEYS COLUMNS
     private final static String KEY_ID = "KEY_ID";
-    private final static String KEY_NAME = "KEY_NAME";
-    private final static String KEY_NAME_IV = "KEY_NAME_IV";
-    private final static String KEY_BRIEF = "KEY_BRIEF";
-    private final static String KEY_BRIEF_IV = "KEY_BRIEF_IV";
-    private final static String KEY_USER = "KEY_USER";
-    private final static String KEY_USER_IV = "KEY_USER_IV";
-    private final static String KEY_KEY = "KEY_KEY";
-    private final static String KEY_KEY_IV = "KEY_KEY_IV";
-    private final static String KEY_ID_FOLDER = "KEY_ID_FOLDER";
+    private final static String KEY_PARENT = "KEY_PARENT";
+    private final static String KEY_OBJ = "KEY_OBJ";
+    private final static String KEY_WRAPPED = "KEY_WRAPPED";
+    private final static String KEY_IV = "KEY_IV";
 
     // DEFAULT OPTIONS COLUMNS
     private final static String DEFAULT_OPT_LENGTH = "DEFAULT_OPT_LENGTH";
@@ -54,24 +56,20 @@ public class Database extends SQLiteOpenHelper {
     // CREATE FOLDER TABLE
     private final static String CREATE_TABLE_FOLDERS =
             "CREATE TABLE " + TABLE_FOLDERS + "("
-            + FOLDER_ID + " INTEGER PRIMARY KEY AUTOINCREMENT,"
-            + FOLDER_NAME + " BLOB UNIQUE,"
-            + FOLDER_PARENT + " INTEGER DEFAULT 0,"
-            + FOLDER_IV + " BLOB NOT NULL)";
+                    + FOLDER_ID + " INTEGER PRIMARY KEY,"
+                    + FOLDER_PARENT + " INTEGER NOT NULL,"
+                    + FOLDER_OBJ + " BLOB UNIQUE,"
+                    + FOLDER_WRAPPED + " BLOB NOT NULL,"
+                    + FOLDER_IV + " BLOB NOT NULL)";
 
     // CREATE KEYS TABLE
     private final static String CREATE_TABLE_KEYS =
             "CREATE TABLE " + TABLE_KEYS + "("
-                    + KEY_ID + " INTEGER PRIMARY KEY AUTOINCREMENT,"
-                    + KEY_NAME + " BLOB UNIQUE,"
-                    + KEY_NAME_IV + " BLOB NOT NULL,"
-                    + KEY_USER + " BLOB DEFAULT NULL,"
-                    + KEY_USER_IV + " BLOB DEFAULT NULL,"
-                    + KEY_BRIEF + " BLOB DEFAULT NULL,"
-                    + KEY_BRIEF_IV + " BLOB DEFAULT NULL,"
-                    + KEY_KEY + " BLOB NOT NULL,"
-                    + KEY_KEY_IV + " BLOB NOT NULL,"
-                    + KEY_ID_FOLDER + " INTEGER)";
+                    + KEY_ID + " INTEGER PRIMARY KEY,"
+                    + KEY_PARENT + " INTEGER NOT NULL,"
+                    + KEY_OBJ + " BLOB UNIQUE,"
+                    + KEY_WRAPPED + " BLOB NOT NULL,"
+                    + KEY_IV + " BLOB NOT NULL)";
 
     // CREATE DEFAULT OPTIONS TABLE
     private final static String CREATE_TABLE_DEFAULT_OPTIONS =
@@ -107,148 +105,100 @@ public class Database extends SQLiteOpenHelper {
         onCreate(db);
     }
 
-    /** $$$$ start folders $$$$ **/
 
-    public boolean insertFolder(String name, int parent){
+    /*
+     *  $$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$
+     *  $$$$$$$$$$$$$$$$$$$$$$$$$$    FOLDERS  & HEADERS   $$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$
+     *  $$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$
+     */
+
+    public boolean insertFolder(Folder folder){
 
         SQLiteDatabase db = this.getWritableDatabase();
-        ContentValues values = new ContentValues(2);
-        Cryptography crypto = Cryptography.getInstance();
-        boolean insert;
+        ContentValues values = new ContentValues();
+        Cryptography cryptography = Cryptography.getInstance();
+        ByteArrayOutputStream bos = new ByteArrayOutputStream();
 
+        try {
 
-        Cryptography.CryptoObj cryptoObj = crypto.encrypt(name);
-        if(cryptoObj != null) {
+            folder.setId(generateId());
+            ObjectOutputStream os = new ObjectOutputStream(bos);
+            os.writeObject(folder);
+            os.close();
+            Cryptography.CryptoObj cryptoObj = cryptography.encrypt(bos.toByteArray());
+            bos.close();
 
-            values.put(FOLDER_NAME, cryptoObj.getRawData());
-            values.put(FOLDER_PARENT, parent);
+            if(cryptoObj == null){
+                db.close();
+                return false;
+            }
+
+            values.put(FOLDER_ID,folder.getId());
+            values.put(FOLDER_OBJ,cryptoObj.getData());
+            values.put(FOLDER_WRAPPED, cryptoObj.getWrap());
             values.put(FOLDER_IV, cryptoObj.getIv());
-            insert = db.insert(TABLE_FOLDERS, null, values) != -1;
+            values.put(FOLDER_PARENT,folder.getParentId());
 
-        }else insert = false;
+            boolean result = db.insert(TABLE_FOLDERS,null,values) != -1;
+            db.close();
+            return result;
 
-        db.close();
-        return insert;
-    }
-
-    public boolean insertFolder(){
-
-
-
-        return false;
-    }
-
-    public ArrayList<HeaderWrapper> getHeaders(int parent){
-
-        ArrayList<HeaderWrapper> dataset = new ArrayList<>();
-        SQLiteDatabase db = this.getReadableDatabase();
-        Cryptography crypto = Cryptography.getInstance();
-
-        String query = "SELECT * FROM " + TABLE_FOLDERS + " WHERE " + FOLDER_PARENT + " = ?";
-        try(Cursor c = db.rawQuery(query, new String[]{String.valueOf(parent)})){
-
-            if(c.moveToFirst()) {
-                do {
-                    byte[] rawData = c.getBlob(c.getColumnIndex(FOLDER_NAME));
-                    byte[] iv = c.getBlob(c.getColumnIndex(FOLDER_IV));
-
-                    Cryptography.CryptoObj cryptoObj = crypto.getNewCryptoObj();
-                    cryptoObj.setRawData(rawData);
-                    cryptoObj.setIv(iv);
-                    String name = crypto.decrypt(cryptoObj);
-
-                    if (name != null) {
-                        HeaderWrapper header = new HeaderWrapper();
-                        header.setId(c.getInt(c.getColumnIndex(FOLDER_ID)));
-                        header.setName(name);
-                        header.setParentId(c.getInt(c.getColumnIndex(FOLDER_PARENT)));
-                        header.isFolder(true);
-                        dataset.add(header);
-                    }
-                } while (c.moveToNext());
-            }
-        }
-
-        query = "SELECT * FROM " + TABLE_KEYS + " WHERE " + KEY_ID_FOLDER + " = ?";
-        try(Cursor c = db.rawQuery(query, new String[]{String.valueOf(parent)})){
-
-            if(!c.moveToFirst()){
-                c.close();
-                db.close();
-                return dataset;
-            }
-            do{
-                byte[] rawData = c.getBlob(c.getColumnIndex(KEY_NAME));
-                byte[] iv = c.getBlob(c.getColumnIndex(KEY_NAME_IV));
-
-                Cryptography.CryptoObj cryptoObj = crypto.getNewCryptoObj();
-                cryptoObj.setRawData(rawData);
-                cryptoObj.setIv(iv);
-                String name = crypto.decrypt(cryptoObj);
-                if(name != null){
-                    HeaderWrapper header = new HeaderWrapper();
-                    header.setName(name);
-                    header.isFolder(false);
-                    header.setId(c.getInt(c.getColumnIndex(KEY_ID)));
-                    header.setParentId(c.getInt(c.getColumnIndex(KEY_ID_FOLDER)));
-                    dataset.add(header);
-                }
-            }while(c.moveToNext());
-        }
-
-        db.close();
-        return dataset;
-    }
-
-    public HeaderWrapper getHeader(int id){
-
-        SQLiteDatabase db = this.getReadableDatabase();
-        Cryptography crypto = Cryptography.getInstance();
-
-        String query = "SELECT * FROM " + TABLE_FOLDERS + " WHERE " + FOLDER_ID + " = ?";
-        try(Cursor c = db.rawQuery(query, new String[]{String.valueOf(id)})) {
-            if(!c.moveToFirst() || c.getCount()!=1){
-                c.close();
-                db.close();
-                return null;
-            }
-            byte[] rawData = c.getBlob(c.getColumnIndex(FOLDER_NAME));
-            byte[] iv = c.getBlob(c.getColumnIndex(FOLDER_IV));
-
-            Cryptography.CryptoObj cryptoObj = crypto.getNewCryptoObj();
-            cryptoObj.setRawData(rawData);
-            cryptoObj.setIv(iv);
-            String name = crypto.decrypt(cryptoObj);
-            if(name != null){
-                HeaderWrapper header = new HeaderWrapper();
-                header.setId(id);
-                header.setName(name);
-                header.setParentId(c.getInt(c.getColumnIndex(FOLDER_PARENT)));
-                header.isFolder(true);
-                c.close();
-                db.close();
-                return header;
-            }else{
-                c.close();
-                db.close();
-                return null;
-            }
+        } catch (IOException e) {
+            e.printStackTrace();
+            db.close();
+            return false;
         }
     }
 
-    public boolean dropFolder(int id){
+    public boolean updateFolder(Folder folder){
 
-
-        dropRecursive(id);
         SQLiteDatabase db = this.getWritableDatabase();
-        db.delete(TABLE_FOLDERS,FOLDER_ID + " = ? ", new String[]{String.valueOf(id)});
-        db.delete(TABLE_KEYS,KEY_ID_FOLDER + " = ? ", new String[]{String.valueOf(id)});
+        ContentValues values = new ContentValues();
+        Cryptography cryptography = Cryptography.getInstance();
+        ByteArrayOutputStream bos = new ByteArrayOutputStream();
+
+        try {
+
+            ObjectOutputStream os = new ObjectOutputStream(bos);
+            os.writeObject(folder);
+            os.close();
+            Cryptography.CryptoObj cryptoObj = cryptography.encrypt(bos.toByteArray());
+            bos.close();
+
+            if(cryptoObj == null){
+                db.close();
+                return false;
+            }
+
+            values.put(FOLDER_ID,folder.getId());
+            values.put(FOLDER_OBJ,cryptoObj.getData());
+            values.put(FOLDER_WRAPPED, cryptoObj.getWrap());
+            values.put(FOLDER_IV, cryptoObj.getIv());
+            values.put(FOLDER_PARENT, folder.getParentId());
+
+            boolean result = db.update(TABLE_FOLDERS,values,FOLDER_ID + " = ?", new String[]{ String.valueOf(folder.getId())}) == 1;
+            db.close();
+            return result;
+
+        } catch (IOException e) {
+            e.printStackTrace();
+            db.close();
+            return false;
+        }
+    }
+
+    public boolean removeFolder(Folder folder){
+
+        removeRecursive(folder.getId());
+        SQLiteDatabase db = this.getWritableDatabase();
+        db.delete(TABLE_FOLDERS,FOLDER_ID + " = ? ", new String[]{String.valueOf(folder.getId())});
+        db.delete(TABLE_KEYS,KEY_PARENT + " = ? ", new String[]{String.valueOf(folder.getId())});
         db.close();
         return true;
+
     }
 
-    private void dropRecursive(int id){
-
+    private void removeRecursive(int id){
 
         if(folderHasChild(id)){
             SQLiteDatabase db = this.getWritableDatabase();
@@ -256,10 +206,10 @@ public class Database extends SQLiteOpenHelper {
             try(Cursor cursor = db.rawQuery(query, new String[]{String.valueOf(id)})){
                 if(cursor.moveToFirst()){
                     do{
-                        dropRecursive(cursor.getInt(cursor.getColumnIndex(FOLDER_ID)));
+                        removeRecursive(cursor.getInt(cursor.getColumnIndex(FOLDER_ID)));
                     }while(cursor.moveToNext());
                     db.delete(TABLE_FOLDERS,FOLDER_PARENT + " = ? ", new String[]{String.valueOf(id)});
-                    db.delete(TABLE_KEYS,KEY_ID_FOLDER + " = ? ", new String[]{String.valueOf(id)});
+                    db.delete(TABLE_KEYS,KEY_PARENT + " = ? ", new String[]{String.valueOf(id)});
                     db.close();
                 }
             }
@@ -267,9 +217,10 @@ public class Database extends SQLiteOpenHelper {
         }else{
             SQLiteDatabase db = this.getWritableDatabase();
             db.delete(TABLE_FOLDERS,FOLDER_PARENT + " = ? ", new String[]{String.valueOf(id)});
-            db.delete(TABLE_KEYS,KEY_ID_FOLDER + " = ? ", new String[]{String.valueOf(id)});
+            db.delete(TABLE_KEYS,KEY_PARENT + " = ? ", new String[]{String.valueOf(id)});
             db.close();
         }
+
     }
 
     private boolean folderHasChild(int id){
@@ -290,382 +241,398 @@ public class Database extends SQLiteOpenHelper {
         }
     }
 
-    public boolean updateFolderParent(int id, int newParent){
-        SQLiteDatabase db = this.getWritableDatabase();
-        ContentValues values = new ContentValues();
-        values.put(FOLDER_PARENT,newParent);
-        boolean ok = db.update(TABLE_FOLDERS,values,FOLDER_ID + " = ? ",new String[]{String.valueOf(id)}) == 1;
-        db.close();
-        return ok;
+    private int generateId(){
+
+        boolean existsIdF;
+        boolean existsIdK;
+        int rand;
+
+        do{
+            rand = ThreadLocalRandom.current().nextInt();
+
+            SQLiteDatabase db = this.getReadableDatabase();
+            String query = "SELECT * FROM " + TABLE_FOLDERS + " WHERE " + FOLDER_ID + " = ?";
+            try (Cursor cursor = db.rawQuery(query, new String[]{ String.valueOf(rand)})){
+                existsIdF = cursor.getCount() != 0;
+            }
+            query = "SELECT * FROM " + TABLE_KEYS + " WHERE " + KEY_ID + " = ?";
+            try (Cursor cursor = db.rawQuery(query, new String[]{ String.valueOf(rand)})){
+                existsIdK = cursor.getCount() != 0;
+            }
+
+        } while(existsIdF || existsIdK);
+
+        return rand;
     }
 
-    public boolean updateFolderName(int id, String newName){
-        SQLiteDatabase db = this.getWritableDatabase();
-        ContentValues values = new ContentValues();
+    @Nullable
+    public ArrayList<Header> selectHeaders(int parent){
+
+        SQLiteDatabase db = this.getReadableDatabase();
+        String query = "SELECT * FROM " + TABLE_FOLDERS + " WHERE " + FOLDER_PARENT + " = ?";
         Cryptography cryptography = Cryptography.getInstance();
-        Cryptography.CryptoObj obj = cryptography.encrypt(newName);
-        if(obj!=null){
-            values.put(FOLDER_NAME,obj.getRawData());
-            values.put(FOLDER_IV,obj.getIv());
-            boolean ok = db.update(TABLE_FOLDERS,values,FOLDER_ID + " = ? ",new String[]{String.valueOf(id)}) == 1;
-            db.close();
-            return ok;
+        ArrayList<Header> result = new ArrayList<>();
+
+        try (Cursor cursor = db.rawQuery(query, new String[]{ String.valueOf(parent)})){
+
+            if(cursor.moveToFirst()){
+                do{
+                    Cryptography.CryptoObj cryptoObj = cryptography.getCryptoObjInstance();
+                    cryptoObj.setData(cursor.getBlob(cursor.getColumnIndex(FOLDER_OBJ)));
+                    cryptoObj.setWrap(cursor.getBlob(cursor.getColumnIndex(FOLDER_WRAPPED)));
+                    cryptoObj.setIv(cursor.getBlob(cursor.getColumnIndex(FOLDER_IV)));
+
+                    byte[] rawObj = cryptography.decrypt(cryptoObj);
+                    if(rawObj == null) return null;
+                    ByteArrayInputStream bis = new ByteArrayInputStream(rawObj);
+                    ObjectInputStream ois = new ObjectInputStream(bis);
+                    bis.close();
+                    Folder folder = (Folder) ois.readObject();
+                    ois.close();
+                    result.add(folder);
+                }while (cursor.moveToNext());
+            }
+
+        } catch (IOException | ClassNotFoundException e){
+            e.printStackTrace();
         }
-        else{
+
+        query = "SELECT * FROM " + TABLE_KEYS + " WHERE " + KEY_PARENT + " = ?";
+
+        try (Cursor cursor = db.rawQuery(query, new String[]{ String.valueOf(parent)})){
+
+            if(!cursor.moveToFirst()) {
+                db.close();
+                return result;
+            }
+
+            do{
+                Cryptography.CryptoObj cryptoObj = cryptography.getCryptoObjInstance();
+                cryptoObj.setData(cursor.getBlob(cursor.getColumnIndex(KEY_OBJ)));
+                cryptoObj.setWrap(cursor.getBlob(cursor.getColumnIndex(KEY_WRAPPED)));
+                cryptoObj.setIv(cursor.getBlob(cursor.getColumnIndex(KEY_IV)));
+
+                byte[] rawObj = cryptography.decrypt(cryptoObj);
+                if(rawObj == null) return null;
+                ByteArrayInputStream bis = new ByteArrayInputStream(rawObj);
+                ObjectInputStream ois = new ObjectInputStream(bis);
+                bis.close();
+                Content content = (Content) ois.readObject();
+                ois.close();
+                result.add(content);
+            }while (cursor.moveToNext());
+
+            db.close();
+            return result;
+
+        } catch (IOException | ClassNotFoundException e){
+            e.printStackTrace();
+            db.close();
+            return null;
+        }
+    }
+
+    @Nullable
+    public Header selectHeader(int id){
+
+        SQLiteDatabase db = this.getReadableDatabase();
+        String query = "SELECT * FROM " + TABLE_FOLDERS + " WHERE " + FOLDER_ID + " = ?";
+        Cryptography cryptography = Cryptography.getInstance();
+
+        try (Cursor cursor = db.rawQuery(query, new String[]{String.valueOf(id)})){
+
+            if(!cursor.moveToFirst() || cursor.getCount() != 1){
+                db.close();
+                return null;
+            }
+
+            Cryptography.CryptoObj cryptoObj = cryptography.getCryptoObjInstance();
+            cryptoObj.setData(cursor.getBlob(cursor.getColumnIndex(FOLDER_OBJ)));
+            cryptoObj.setWrap(cursor.getBlob(cursor.getColumnIndex(FOLDER_WRAPPED)));
+            cryptoObj.setIv(cursor.getBlob(cursor.getColumnIndex(FOLDER_IV)));
+
+            byte[] rawObj = cryptography.decrypt(cryptoObj);
+            if(rawObj == null) return null;
+            ByteArrayInputStream bis = new ByteArrayInputStream(rawObj);
+            ObjectInputStream ois = new ObjectInputStream(bis);
+            Folder folder = (Folder) ois.readObject();
+            bis.close();
+            ois.close();
+            db.close();
+            return folder;
+
+        }catch (IOException | ClassNotFoundException e){
+            e.printStackTrace();
+            db.close();
+            return null;
+        }
+
+    }
+
+    @Nullable
+    Folder selectFolder(int id){
+
+        SQLiteDatabase db = this.getReadableDatabase();
+        String query = "SELECT * FROM " + TABLE_FOLDERS + " WHERE " + KEY_ID + " = ?";
+        Cryptography cryptography = Cryptography.getInstance();
+
+        try (Cursor cursor = db.rawQuery(query, new String[]{ String.valueOf(id)})){
+
+            if(!cursor.moveToFirst() || cursor.getCount()!=1){
+                db.close();
+                return null;
+            }
+
+            Cryptography.CryptoObj cryptoObj = cryptography.getCryptoObjInstance();
+            cryptoObj.setData(cursor.getBlob(cursor.getColumnIndex(FOLDER_OBJ)));
+            cryptoObj.setWrap(cursor.getBlob(cursor.getColumnIndex(FOLDER_WRAPPED)));
+            cryptoObj.setIv(cursor.getBlob(cursor.getColumnIndex(FOLDER_IV)));
+
+            byte[] rawObj = cryptography.decrypt(cryptoObj);
+            if(rawObj == null) return null;
+            ByteArrayInputStream bis = new ByteArrayInputStream(rawObj);
+            ObjectInputStream ois = new ObjectInputStream(bis);
+            Folder folder = (Folder)ois.readObject();
+            ois.close();
+            db.close();
+            return folder;
+
+        }catch (IOException | ClassNotFoundException e){
+            e.printStackTrace();
+            db.close();
+            return null;
+        }
+    }
+
+    boolean existsFolder(int id){
+
+        SQLiteDatabase db = this.getReadableDatabase();
+        String query = "SELECT * FROM " + TABLE_FOLDERS + " WHERE " + FOLDER_ID + " = ?";
+        try (Cursor cursor = db.rawQuery(query, new String[]{String.valueOf(id)})){
+            boolean result = cursor.getCount() > 0;
+            db.close();
+            return result;
+        }
+    }
+
+    /*
+     *  $$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$
+     *  $$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$    KEYS    $$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$
+     *  $$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$
+     */
+
+    public boolean insertKey(Content content){
+
+        SQLiteDatabase db = this.getWritableDatabase();
+        ContentValues values = new ContentValues(2);
+        Cryptography cryptography = Cryptography.getInstance();
+        ByteArrayOutputStream bos = new ByteArrayOutputStream();
+
+        try {
+
+            content.setId(generateId());
+            ObjectOutputStream os = new ObjectOutputStream(bos);
+            os.writeObject(content);
+            os.close();
+            Cryptography.CryptoObj cryptoObj = cryptography.encrypt(bos.toByteArray());
+            bos.close();
+
+            if(cryptoObj == null){
+                db.close();
+                return false;
+            }
+
+            values.put(KEY_ID,content.getId());
+            values.put(KEY_OBJ,cryptoObj.getData());
+            values.put(KEY_WRAPPED, cryptoObj.getWrap());
+            values.put(KEY_IV, cryptoObj.getIv());
+            values.put(KEY_PARENT,content.getParentId());
+
+            boolean result = db.insert(TABLE_KEYS,null,values) != -1;
+            db.close();
+            return result;
+
+        } catch (IOException e) {
+            e.printStackTrace();
             db.close();
             return false;
         }
     }
 
-    boolean existsFolder(String encodedName){
-
-        SQLiteDatabase db = this.getReadableDatabase();
-        String query = "SELECT * FROM " + TABLE_FOLDERS + " WHERE " + FOLDER_NAME + " LIKE '?'";
-        try(Cursor c = db.rawQuery(query,new String[]{encodedName})){
-            return c.getCount() != 0;
-        }
-    }
-
-    /** $$$$ end folders $$$$ **/
-
-    /** $$$$ start keys $$$$ **/
-
-    public boolean insertKey(KeyData keyData){
+    public boolean updateKey(Content content){
 
         SQLiteDatabase db = this.getWritableDatabase();
-        Cryptography crypto = Cryptography.getInstance();
+        Cryptography cryptography = Cryptography.getInstance();
         ContentValues values = new ContentValues();
+        ByteArrayOutputStream bos = new ByteArrayOutputStream();
 
-        Cryptography.CryptoObj cryptoObj;
-        cryptoObj = crypto.encrypt(keyData.getNameID());
-        if (cryptoObj == null) { db.close(); return false; }
-        values.put(KEY_NAME,cryptoObj.getRawData());
-        values.put(KEY_NAME_IV,cryptoObj.getIv());
+        try {
 
-        cryptoObj = crypto.encrypt(keyData.getUser());
-        if (cryptoObj == null) { db.close(); return false; }
-        values.put(KEY_USER,cryptoObj.getRawData());
-        values.put(KEY_USER_IV,cryptoObj.getIv());
+            ObjectOutputStream os = new ObjectOutputStream(bos);
+            os.writeObject(content);
+            os.close();
+            Cryptography.CryptoObj cryptoObj = cryptography.encrypt(bos.toByteArray());
+            bos.close();
 
-        cryptoObj = crypto.encrypt(keyData.getBrief());
-        if (cryptoObj == null) { db.close(); return false; }
-        values.put(KEY_BRIEF,cryptoObj.getRawData());
-        values.put(KEY_BRIEF_IV,cryptoObj.getIv());
-
-        cryptoObj = crypto.encrypt(keyData.getKey());
-        if (cryptoObj == null) { db.close(); return false; }
-        values.put(KEY_KEY,cryptoObj.getRawData());
-        values.put(KEY_KEY_IV,cryptoObj.getIv());
-
-        values.put(KEY_ID_FOLDER,keyData.getIdParent());
-        boolean result = db.insert(TABLE_KEYS,null,values) != -1;
-        db.close();
-        return result;
-    }
-
-    @Nullable
-    public KeyData getKey(int id){
-
-        SQLiteDatabase db = this.getReadableDatabase();
-        String query = "SELECT * FROM " + TABLE_KEYS + " WHERE " + KEY_ID + " = ?";
-        Cryptography crypto = Cryptography.getInstance();
-
-        try( Cursor c = db.rawQuery(query,new String[]{String.valueOf(id)})){
-
-
-            if(c.moveToFirst() && c.getCount() == 1){
-
-                KeyData keyData = new KeyData();
-                Cryptography.CryptoObj cryptoObj = crypto.getNewCryptoObj();
-
-                cryptoObj.setIv(c.getBlob(c.getColumnIndex(KEY_NAME_IV)));
-                cryptoObj.setRawData(c.getBlob(c.getColumnIndex(KEY_NAME)));
-                keyData.setNameID(crypto.decrypt(cryptoObj));
-
-                cryptoObj.setIv(c.getBlob(c.getColumnIndex(KEY_USER_IV)));
-                cryptoObj.setRawData(c.getBlob(c.getColumnIndex(KEY_USER)));
-                keyData.setUser(crypto.decrypt(cryptoObj));
-
-                cryptoObj.setIv(c.getBlob(c.getColumnIndex(KEY_BRIEF_IV)));
-                cryptoObj.setRawData(c.getBlob(c.getColumnIndex(KEY_BRIEF)));
-                keyData.setBrief(crypto.decrypt(cryptoObj));
-
-                cryptoObj.setIv(c.getBlob(c.getColumnIndex(KEY_KEY_IV)));
-                cryptoObj.setRawData(c.getBlob(c.getColumnIndex(KEY_KEY)));
-                keyData.setKey(crypto.decrypt(cryptoObj));
-
-                keyData.setIdParent(c.getInt(c.getColumnIndex(KEY_ID_FOLDER)));
-                keyData.setId(c.getInt(c.getColumnIndex(KEY_ID)));
-
+            if(cryptoObj == null){
                 db.close();
-                return keyData;
-
-            }else{
-                c.close();
-                db.close();
-                return null;
+                return false;
             }
-        }
 
-    }
+            values.put(KEY_ID, content.getId());
+            values.put(KEY_PARENT, content.getParentId());
+            values.put(KEY_OBJ, cryptoObj.getData());
+            values.put(KEY_WRAPPED, cryptoObj.getWrap());
+            values.put(KEY_IV, cryptoObj.getIv());
 
-    @Nullable
-    public ArrayList<KeyData> getKeys(int parent){
+            boolean result = db.update(TABLE_KEYS,values, KEY_ID + " = ?", new String[]{ String.valueOf(content.getId())}) == 1;
+            db.close();
+            return result;
 
-        ArrayList<KeyData> keys = new ArrayList<>();
-        Cryptography crypto = Cryptography.getInstance();
-        SQLiteDatabase db = this.getReadableDatabase();
-        String query = "SELECT * FROM " + TABLE_KEYS + " WHERE " + KEY_ID_FOLDER + " = ?";
-
-        try (Cursor c = db.rawQuery(query, new String[]{String.valueOf(parent)})){
-
-            if(!c.moveToFirst()){
-                c.close();
-                db.close();
-                return null;
-            }
-            Cryptography.CryptoObj cryptoObj = crypto.getNewCryptoObj();
-            do{
-
-                KeyData keyData = new KeyData();
-
-                cryptoObj.setRawData(c.getBlob(c.getColumnIndex(KEY_NAME)));
-                cryptoObj.setIv(c.getBlob(c.getColumnIndex(KEY_NAME_IV)));
-                keyData.setNameID(crypto.decrypt(cryptoObj));
-
-                cryptoObj.setRawData(c.getBlob(c.getColumnIndex(KEY_USER)));
-                cryptoObj.setIv(c.getBlob(c.getColumnIndex(KEY_USER_IV)));
-                keyData.setUser(crypto.decrypt(cryptoObj));
-
-                cryptoObj.setRawData(c.getBlob(c.getColumnIndex(KEY_BRIEF)));
-                cryptoObj.setIv(c.getBlob(c.getColumnIndex(KEY_BRIEF_IV)));
-                keyData.setBrief(crypto.decrypt(cryptoObj));
-
-                cryptoObj.setRawData(c.getBlob(c.getColumnIndex(KEY_KEY)));
-                cryptoObj.setIv(c.getBlob(c.getColumnIndex(KEY_KEY_IV)));
-                keyData.setKey(crypto.decrypt(cryptoObj));
-
-                keyData.setIdParent(c.getInt(c.getColumnIndex(KEY_ID_FOLDER)));
-
-                keys.add(keyData);
-            }while (c.moveToNext());
-            return keys;
+        } catch (IOException e) {
+            e.printStackTrace();
+            db.close();
+            return false;
         }
     }
 
-    public boolean updateKey(KeyData newValues){
-
-        SQLiteDatabase db = this.getWritableDatabase();
-        Cryptography crypto = Cryptography.getInstance();
-        ContentValues values = new ContentValues();
-        Cryptography.CryptoObj obj;
-
-        obj = crypto.encrypt(newValues.getNameID());
-        if(obj != null){
-            values.put(KEY_NAME,obj.getRawData());
-            values.put(KEY_NAME_IV,obj.getIv());
-        }
-
-        obj = crypto.encrypt(newValues.getUser());
-        if(obj != null){
-            values.put(KEY_USER,obj.getRawData());
-            values.put(KEY_USER_IV,obj.getIv());
-        }
-
-        obj = crypto.encrypt(newValues.getBrief());
-        if(obj != null){
-            values.put(KEY_BRIEF,obj.getRawData());
-            values.put(KEY_BRIEF_IV,obj.getIv());
-        }
-
-        obj = crypto.encrypt(newValues.getKey());
-        if(obj != null){
-            values.put(KEY_KEY,obj.getRawData());
-            values.put(KEY_KEY_IV,obj.getIv());
-        }
-        values.put(KEY_ID_FOLDER,newValues.getIdParent());
-
-        boolean reslt = db.update(TABLE_KEYS,values,KEY_ID + " = ?",new String[]{String.valueOf(newValues.getId())}) == 1;
-        db.close();
-        return reslt;
-    }
-
-    public boolean updateKeyParent(int id, int newParent){
-
-        SQLiteDatabase db = this.getWritableDatabase();
-        ContentValues values = new ContentValues();
-        values.put(KEY_ID_FOLDER,newParent);
-        boolean ok = db.update(TABLE_KEYS,values,KEY_ID + " = ? ",new String[]{String.valueOf(id)}) == 1;
-        db.close();
-        return ok;
-    }
-
-    public boolean dropKey(int id){
-
+    public boolean removeKey(int id){
         SQLiteDatabase db = this.getWritableDatabase();
         boolean result = db.delete(TABLE_KEYS,KEY_ID + " = ? ", new String[]{String.valueOf(id)}) == 1;
         db.close();
         return result;
     }
 
-    /** $$$$ end keys $$$$ **/
+    @Nullable
+    public Content selectKey(int id){
 
-    /** $$$$ start search keys & folders $$$$ **/
-
-    public ArrayList<HeaderWrapper> findAll(String matchName){
-
-        ArrayList<HeaderWrapper> dataset = new ArrayList<>();
         SQLiteDatabase db = this.getReadableDatabase();
-        Cryptography crypto = Cryptography.getInstance();
+        Cryptography cryptography = Cryptography.getInstance();
+        String query = "SELECT * FROM " + TABLE_KEYS + " WHERE " + KEY_ID + " = ?";
 
-        String query = "SELECT * FROM " + TABLE_FOLDERS;
-        try(Cursor c = db.rawQuery(query, null)){
+        try (Cursor cursor = db.rawQuery(query, new String[]{ String.valueOf(id)})){
 
-            if(c.moveToFirst()) {
-                do {
-                    byte[] rawData = c.getBlob(c.getColumnIndex(FOLDER_NAME));
-                    byte[] iv = c.getBlob(c.getColumnIndex(FOLDER_IV));
-
-                    Cryptography.CryptoObj cryptoObj = crypto.getNewCryptoObj();
-                    cryptoObj.setRawData(rawData);
-                    cryptoObj.setIv(iv);
-                    String name = crypto.decrypt(cryptoObj);
-
-                    if (name != null && name.toLowerCase().contains(matchName.toLowerCase())) {
-                        HeaderWrapper header = new HeaderWrapper();
-                        header.setId(c.getInt(c.getColumnIndex(FOLDER_ID)));
-                        header.setName(name);
-                        header.setParentId(c.getInt(c.getColumnIndex(FOLDER_PARENT)));
-                        header.isFolder(true);
-                        dataset.add(header);
-                    }
-                } while (c.moveToNext());
-            }
-        }
-
-        query = "SELECT * FROM " + TABLE_KEYS;
-        try(Cursor c = db.rawQuery(query, null)){
-
-            if(!c.moveToFirst()){
-                c.close();
+            if(!cursor.moveToFirst() || cursor.getCount() != 1){
                 db.close();
-                return dataset;
+                return null;
             }
-            do{
-                byte[] rawData = c.getBlob(c.getColumnIndex(KEY_NAME));
-                byte[] iv = c.getBlob(c.getColumnIndex(KEY_NAME_IV));
 
-                Cryptography.CryptoObj cryptoObj = crypto.getNewCryptoObj();
-                cryptoObj.setRawData(rawData);
-                cryptoObj.setIv(iv);
-                String name = crypto.decrypt(cryptoObj);
-                if(name != null && name.toLowerCase().contains(matchName.toLowerCase())){
-                    HeaderWrapper header = new HeaderWrapper();
-                    header.setName(name);
-                    header.isFolder(false);
-                    header.setId(c.getInt(c.getColumnIndex(KEY_ID)));
-                    header.setParentId(c.getInt(c.getColumnIndex(KEY_ID_FOLDER)));
-                    dataset.add(header);
-                }
-            }while(c.moveToNext());
+            Cryptography.CryptoObj cryptoObj = cryptography.getCryptoObjInstance();
+            cryptoObj.setData(cursor.getBlob(cursor.getColumnIndex(KEY_OBJ)));
+            cryptoObj.setWrap(cursor.getBlob(cursor.getColumnIndex(KEY_WRAPPED)));
+            cryptoObj.setIv(cursor.getBlob(cursor.getColumnIndex(KEY_IV)));
+
+            byte[] rawObj = cryptography.decrypt(cryptoObj);
+            if(rawObj == null) return null;
+            ByteArrayInputStream bis = new ByteArrayInputStream(rawObj);
+            ObjectInputStream ois = new ObjectInputStream(bis);
+            bis.close();
+            Content content = (Content)ois.readObject();
+            ois.close();
+            db.close();
+            return content;
+
+        } catch (IOException | ClassNotFoundException e){
+            e.printStackTrace();
+            db.close();
+            return null;
         }
-
-        db.close();
-        return dataset;
     }
 
-    /** $$$$ search keys & folders $$$$ **/
+    boolean existsKey(int id){
+
+        SQLiteDatabase db = this.getReadableDatabase();
+        String query = "SELECT * FROM " + TABLE_KEYS + " WHERE " + KEY_ID + " = ?";
+        try(Cursor c = db.rawQuery(query, new String[]{ String.valueOf(id)})){
+            boolean result = c.getCount() == 1;
+            db.close();
+            return result;
+        }
+    }
+
+    /*
+     *  $$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$
+     *  $$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$    FINDER    $$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$
+     *  $$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$
+     */
+
+
+    public ArrayList<Header> findAll(String query){
+        return null;
+    }
+
+    /*
+     *  $$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$
+     *  $$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$    LOG & DROP    $$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$
+     *  $$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$
+     */
 
     public void log(){
 
         SQLiteDatabase db = this.getReadableDatabase();
         String query = "SELECT * FROM " + TABLE_FOLDERS;
         Cryptography crypto = Cryptography.getInstance();
+        ByteArrayInputStream bis;
+        ObjectInputStream ois;
 
-        try(Cursor c = db.rawQuery(query,null)){
-            if(c.moveToFirst()){
-                System.out.println(" ------- START FOLDERS: ENCRYPTED ------- ");
-                do{
+        System.out.println(" ");
+        System.out.println("$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$");
+        System.out.println("$$$$$$$$$$$$$$$$$$$$$$$$$$    FOLDERS  & HEADERS   $$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$");
+        System.out.println("$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$");
+        System.out.println(" ");
+        System.out.println(" ");
+        try (Cursor cursor = db.rawQuery(query, null)){
+            if(cursor.moveToFirst()) {
+
+                do {
+                    Cryptography.CryptoObj cryptoObj = crypto.getCryptoObjInstance();
+                    cryptoObj.setData(cursor.getBlob(cursor.getColumnIndex(FOLDER_OBJ)));
+                    cryptoObj.setWrap(cursor.getBlob(cursor.getColumnIndex(FOLDER_WRAPPED)));
+                    cryptoObj.setIv(cursor.getBlob(cursor.getColumnIndex(FOLDER_IV)));
+
+                    byte[] rawObj = crypto.decrypt(cryptoObj);
+                    bis = new ByteArrayInputStream(rawObj);
+                    ois = new ObjectInputStream(bis);
+                    Folder folder = (Folder) ois.readObject();
+                    System.out.println(" :......: "+ folder.getId() +" :......: " + folder.toString());
                     System.out.println(" ");
-                    System.out.println(" ------- FOLDERS__id: " + c.getInt(c.getColumnIndex(FOLDER_ID)));
-                    System.out.println(" ------- FOLDERS__name: " + c.getBlob(c.getColumnIndex(FOLDER_NAME)));
-                    System.out.println(" ------- FOLDERS__parent: " + c.getInt(c.getColumnIndex(FOLDER_PARENT)));
-                }while(c.moveToNext());
-                System.out.println(" ");
-                System.out.println(" ------- END FOLDERS: ENCRYPTED ------- ");
-                System.out.println(" ");
+
+                }while(cursor.moveToNext());
+
             }
-        }
-        try(Cursor c = db.rawQuery(query,null)){
-            if(c.moveToFirst()){
-                System.out.println(" ------- START FOLDERS: DECRYPTED ------- ");
-                do{
-
-                    System.out.println(" ------- FOLDERS__id: " + c.getInt(c.getColumnIndex(FOLDER_ID)));
-
-                    Cryptography.CryptoObj cryptoObj = crypto.getNewCryptoObj();
-                    cryptoObj.setRawData(c.getBlob(c.getColumnIndex(FOLDER_NAME)));
-                    cryptoObj.setIv(c.getBlob(c.getColumnIndex(FOLDER_IV)));
-
-                    System.out.println(" ------- FOLDERS__name: " + crypto.decrypt(cryptoObj));
-                    System.out.println(" ------- FOLDERS__parent: " + c.getInt(c.getColumnIndex(FOLDER_PARENT)));
-
-                }while(c.moveToNext());
-                System.out.println(" ------- END FOLDERS: DECRYPTED ------- ");
-                System.out.println(" ");
-            }
+        }catch (IOException | ClassNotFoundException e){
+            e.printStackTrace();
         }
 
         query = "SELECT * FROM " + TABLE_KEYS;
+        System.out.println(" ");
+        System.out.println("$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$");
+        System.out.println("$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$    KEYS    $$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$");
+        System.out.println("$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$");
+        System.out.println(" ");
+        System.out.println(" ");
+        try (Cursor cursor = db.rawQuery(query, null)){
+            if(cursor.moveToFirst()) {
 
-        try(Cursor c = db.rawQuery(query,null)){
-            if(c.moveToFirst()){
-                System.out.println(" ------- START KEYS: ENCRYPTED ------- ");
-                do{
+                do {
+                    Cryptography.CryptoObj cryptoObj = crypto.getCryptoObjInstance();
+                    cryptoObj.setData(cursor.getBlob(cursor.getColumnIndex(KEY_OBJ)));
+                    cryptoObj.setWrap(cursor.getBlob(cursor.getColumnIndex(KEY_WRAPPED)));
+                    cryptoObj.setIv(cursor.getBlob(cursor.getColumnIndex(KEY_IV)));
+
+                    byte[] rawObj = crypto.decrypt(cryptoObj);
+                    bis = new ByteArrayInputStream(rawObj);
+                    ois = new ObjectInputStream(bis);
+                    Content content = (Content) ois.readObject();
+                    System.out.println(" :......: "+ content.getId() +" :......: " + content.toString());
                     System.out.println(" ");
-                    System.out.println(" ------- KEYS__ID: " + c.getInt(c.getColumnIndex(KEY_ID)));
-                    System.out.println(" ------- KEYS__NAME_ID: " + Arrays.toString(c.getBlob(c.getColumnIndex(KEY_NAME))));
-                    System.out.println(" ------- KEYS__USER: " + Arrays.toString(c.getBlob(c.getColumnIndex(KEY_USER))));
-                    System.out.println(" ------- KEYS__BRIEF: " + Arrays.toString(c.getBlob(c.getColumnIndex(KEY_BRIEF))));
-                    System.out.println(" ------- KEYS__KEY: " + Arrays.toString(c.getBlob(c.getColumnIndex(KEY_KEY))));
-                    System.out.println(" ------- KEYS__PARENT: " + c.getInt(c.getColumnIndex(KEY_ID_FOLDER)));
-                    System.out.println(" ------- { ALERT: NOT SHOWING IV } -------");
-                }while(c.moveToNext());
-                System.out.println(" ");
-                System.out.println(" ------- END KEYS: ENCRYPTED ------- ");
-                System.out.println(" ");
+
+                }while(cursor.moveToNext());
+
             }
+        }catch (IOException | ClassNotFoundException e){
+            e.printStackTrace();
         }
-        try(Cursor c = db.rawQuery(query,null)){
-            if(c.moveToFirst()){
-                System.out.println(" ------- START KEYS: DECRYPTED ------- ");
-                do{
-
-                    Cryptography.CryptoObj cryptoObj = crypto.getNewCryptoObj();
-
-                    System.out.println(" ------- KEYS__ID: " + c.getInt(c.getColumnIndex(KEY_ID)));
-                    cryptoObj.setRawData(c.getBlob(c.getColumnIndex(KEY_NAME)));
-                    cryptoObj.setIv(c.getBlob(c.getColumnIndex(KEY_NAME_IV)));
-                    System.out.println(" ------- KEYS__NAME_ID: " + crypto.decrypt(cryptoObj));
-                    cryptoObj.setRawData(c.getBlob(c.getColumnIndex(KEY_USER)));
-                    cryptoObj.setIv(c.getBlob(c.getColumnIndex(KEY_USER_IV)));
-                    System.out.println(" ------- KEYS__USER: " + crypto.decrypt(cryptoObj));
-                    cryptoObj.setRawData(c.getBlob(c.getColumnIndex(KEY_BRIEF)));
-                    cryptoObj.setIv(c.getBlob(c.getColumnIndex(KEY_BRIEF_IV)));
-                    System.out.println(" ------- KEYS__BRIEF: " + crypto.decrypt(cryptoObj));
-                    cryptoObj.setRawData(c.getBlob(c.getColumnIndex(KEY_KEY)));
-                    cryptoObj.setIv(c.getBlob(c.getColumnIndex(KEY_KEY_IV)));
-                    System.out.println(" ------- KEYS__KEY: " + crypto.decrypt(cryptoObj));
-                    System.out.println(" ------- KEYS__PARENT: " + c.getInt(c.getColumnIndex(KEY_ID_FOLDER)));
-                    System.out.println(" ------- { ALERT: NOT SHOWING IV } -------");
-
-
-                }while(c.moveToNext());
-                System.out.println(" ------- END KEYS: DECRYPTED ------- ");
-                System.out.println(" ");
-            }
-        }
-        db.close();
     }
 
     public void drop(){

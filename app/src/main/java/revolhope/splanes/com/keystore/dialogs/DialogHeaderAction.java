@@ -31,7 +31,7 @@ public class DialogHeaderAction extends DialogFragment{
     public Dialog onCreateDialog(Bundle savedInstanceState) {
 
         AlertDialog.Builder builder = new AlertDialog.Builder(getContext());
-
+        
         final int id = getArguments().getInt("id");
         final String name = getArguments().getString("name");
         final boolean isFolder = getArguments().getBoolean("isFolder");
@@ -54,8 +54,7 @@ public class DialogHeaderAction extends DialogFragment{
                     @Override
                     public void onClick(DialogInterface dialogInterface, int i) {
                         DialogMoveElement dialogMoveElement = new DialogMoveElement();
-                        dialogMoveElement.setIdClicked(id);
-                        dialogMoveElement.setIsFolder(isFolder);
+                        dialogMoveElement.setArguments(getArguments());
                         dialogMoveElement.setCallback(callback);
                         dialogMoveElement.show(getFragmentManager(),"MoveDialog");
 

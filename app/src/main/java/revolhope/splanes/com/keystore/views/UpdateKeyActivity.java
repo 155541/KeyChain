@@ -4,7 +4,6 @@ import android.os.Bundle;
 import android.support.annotation.Nullable;
 import android.support.v7.app.AppCompatActivity;
 import android.support.v7.widget.Toolbar;
-import android.view.Menu;
 import android.view.MenuItem;
 import android.view.View;
 import android.widget.AdapterView;
@@ -15,13 +14,18 @@ import android.widget.Toast;
 
 import org.jetbrains.annotations.Contract;
 
+import java.text.SimpleDateFormat;
+import java.util.Calendar;
+import java.util.Locale;
+import java.util.Objects;
+
 import revolhope.splanes.com.keystore.R;
 import revolhope.splanes.com.keystore.helpers.Database;
 import revolhope.splanes.com.keystore.helpers.KeyGenAsyncTask;
+import revolhope.splanes.com.keystore.model.Content;
 import revolhope.splanes.com.keystore.model.enums.EnumLength;
 import revolhope.splanes.com.keystore.model.enums.EnumType;
 import revolhope.splanes.com.keystore.model.interfaces.IOnAsyncTaskComplete;
-import revolhope.splanes.com.keystore.model.KeyData;
 import revolhope.splanes.com.keystore.model.KeyMetadata;
 
 import static revolhope.splanes.com.keystore.views.NewKeyActivity.lengths;
@@ -33,7 +37,7 @@ import static revolhope.splanes.com.keystore.views.NewKeyActivity.types;
 
 public class UpdateKeyActivity extends AppCompatActivity implements IOnAsyncTaskComplete {
 
-    private KeyData oldKeyData;
+    private Content oldContent;
     private EditText editText_Name;
     private EditText editText_User;
     private EditText editText_Brief;
@@ -47,28 +51,29 @@ public class UpdateKeyActivity extends AppCompatActivity implements IOnAsyncTask
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_update_key);
 
-        editText_Name = (EditText) findViewById(R.id.editTextKeyNameId);
-        editText_User = (EditText) findViewById(R.id.editTextUser);
-        editText_Brief = (EditText) findViewById(R.id.editTextBrief);
-        EditText editText_Key = (EditText) findViewById(R.id.editText_key);
+        editText_Name = findViewById(R.id.editTextKeyNameId);
+        editText_User = findViewById(R.id.editTextUser);
+        editText_Brief = findViewById(R.id.editTextBrief);
+        EditText editText_Key = findViewById(R.id.editText_key);
 
-        if(getIntent().hasExtra("oldKeyData")){
-            oldKeyData = (KeyData) getIntent().getExtras().getSerializable("oldKeyData");
+        if(getIntent().hasExtra("oldContent")){
+
+            oldContent = (Content) Objects.requireNonNull(getIntent().getExtras()).getSerializable("oldContent");
 
             setSupportActionBar((Toolbar) findViewById(R.id.toolbar));
             if(getSupportActionBar() != null){
-                getSupportActionBar().setTitle("Update " + oldKeyData.getNameID() + " entry");
+                getSupportActionBar().setTitle("Update " + oldContent.getPlainName() + " entry");
                 getSupportActionBar().setSubtitle("You can update fields and/or the key");
                 getSupportActionBar().setDisplayHomeAsUpEnabled(true);
             }
 
-            editText_Name.setText(oldKeyData.getNameID());
-            editText_User.setText(oldKeyData.getUser());
-            editText_Brief.setText(oldKeyData.getBrief());
-            editText_Key.setText(oldKeyData.getKey());
+            editText_Name.setText(oldContent.getPlainName());
+            editText_User.setText(oldContent.getPlainUser());
+            editText_Brief.setText(oldContent.getPlainBrief());
+            editText_Key.setText(oldContent.getPlainKey());
 
-            Spinner spinnerLength = (Spinner) findViewById(R.id.spinnerLength);
-            Spinner spinnerType = (Spinner) findViewById(R.id.spinnerType);
+            Spinner spinnerLength = findViewById(R.id.spinnerLength);
+            Spinner spinnerType = findViewById(R.id.spinnerType);
             ArrayAdapter<String> adapterSpinnerLength = new ArrayAdapter<>(this,android.R.layout.simple_spinner_item,lengths);
             ArrayAdapter<String> adapterSpinnerType = new ArrayAdapter<>(this,android.R.layout.simple_spinner_item,types);
             spinnerLength.setAdapter(adapterSpinnerLength);
@@ -130,9 +135,8 @@ public class UpdateKeyActivity extends AppCompatActivity implements IOnAsyncTask
                 public void onNothingSelected(AdapterView<?> adapterView) { keyMetadata.setType(null); }
             });
 
-            // TODO: to put old values on spinner i will need to store keymetadata on db
-            //spinnerLength.setSelection(getLengthIndex(oldKeyData.getKeyMetadata().getLength()));
-            //spinnerType.setSelection(getTypeIndex(oldKeyData.getKeyMetadata().getType()));
+            spinnerLength.setSelection(getLengthIndex(oldContent.getEnumLength()));
+            spinnerType.setSelection(getTypeIndex(oldContent.getEnumType()));
 
             keyMetadata = new KeyMetadata();
             this.callback = this;
@@ -141,7 +145,7 @@ public class UpdateKeyActivity extends AppCompatActivity implements IOnAsyncTask
                 @Override
                 public void onClick(View view) {
                     updatingKey = false;
-                    onKeyGenerated(oldKeyData.getKey());
+                    onKeyGenerated(oldContent.getPlainKey());
                 }
             });
 
@@ -170,23 +174,43 @@ public class UpdateKeyActivity extends AppCompatActivity implements IOnAsyncTask
 
     @Override
     public void onKeyGenerated(String key) {
-        KeyData keyData = new KeyData();
-        keyData.setNameID(editText_Name.getText().toString());
-        if(editText_User.getText() != null) keyData.setUser(editText_User.getText().toString());
-        if(editText_Brief.getText() != null) keyData.setBrief(editText_Brief.getText().toString());
-        keyData.setKeyMetadata(keyMetadata);
-        keyData.setKey(key);
-        keyData.setIdParent(oldKeyData.getIdParent());
-        keyData.setId(oldKeyData.getId());
+
+        Calendar c = Calendar.getInstance();
+        c.setTimeInMillis(System.currentTimeMillis());
+        String timestamp = "\nLast update: " + new SimpleDateFormat("dd/MM/yyyy", Locale.ENGLISH).format(c.getTime());
+
+        String brief = editText_Brief.getText().toString();
+        String[] parts = brief.split("\nLast update: ");
+        brief = parts[0] + timestamp;
+
+        Content content = new Content();
+        content.setId(oldContent.getId());
+        content.setPlainName(editText_Name.getText().toString());
+        if(editText_User.getText() != null) content.setPlainUser(editText_User.getText().toString());
+        if(editText_Brief.getText() != null) content.setPlainBrief(brief);
+        content.setPlainKey(key);
+        content.setEnumType(keyMetadata.getType());
+        content.setEnumLength(keyMetadata.getLength());
+        content.setParentId(oldContent.getParentId());
 
         Database database = new Database(this);
         String msg;
-        if(database.updateKey(keyData)) msg = updatingKey ? "Updated key, new value: "+key : "Fields have been updated";
+        if(database.updateKey(content)) msg = updatingKey ? "Updated key, new value: "+key : "Fields have been updated";
         else msg = "Ouch.. Key cannot be stored in database";
         Toast.makeText(this,msg,Toast.LENGTH_LONG).show();
         finish();
     }
 
+    private boolean checkFields(){
+
+        boolean ok = true;
+
+        if(editText_Name.getText().toString().equals("")) ok = false;
+        if(keyMetadata.getLength() == null) ok = false;
+        if(keyMetadata.getType() == null) ok = false;
+
+        return ok;
+    }
 
     @Contract(pure = true)
     private int getLengthIndex(EnumLength length){
@@ -224,17 +248,6 @@ public class UpdateKeyActivity extends AppCompatActivity implements IOnAsyncTask
                 return 6;
             default: return 0;
         }
-    }
-
-    private boolean checkFields(){
-
-        boolean ok = true;
-
-        if(editText_Name.getText().toString().equals("")) ok = false;
-        if(keyMetadata.getLength() == null) ok = false;
-        if(keyMetadata.getType() == null) ok = false;
-
-        return ok;
     }
 
     @Override

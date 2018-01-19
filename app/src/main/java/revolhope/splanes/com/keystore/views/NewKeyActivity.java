@@ -13,14 +13,21 @@ import android.widget.EditText;
 import android.widget.Spinner;
 import android.widget.Toast;
 
+import java.text.SimpleDateFormat;
+import java.util.Calendar;
+import java.util.Locale;
+
 import revolhope.splanes.com.keystore.R;
 import revolhope.splanes.com.keystore.helpers.Database;
+import revolhope.splanes.com.keystore.helpers.Firebase;
 import revolhope.splanes.com.keystore.helpers.KeyGenAsyncTask;
+import revolhope.splanes.com.keystore.model.Content;
 import revolhope.splanes.com.keystore.model.enums.EnumLength;
 import revolhope.splanes.com.keystore.model.enums.EnumType;
 import revolhope.splanes.com.keystore.model.interfaces.IOnAsyncTaskComplete;
-import revolhope.splanes.com.keystore.model.KeyData;
 import revolhope.splanes.com.keystore.model.KeyMetadata;
+
+import static revolhope.splanes.com.keystore.helpers.Firebase.ACTION_CREATE;
 
 /**
  * Created by splanes on 7/1/18.
@@ -38,6 +45,7 @@ public class NewKeyActivity extends AppCompatActivity implements IOnAsyncTaskCom
             {String.valueOf(8),String.valueOf(12),String.valueOf(16),String.valueOf(24),String.valueOf(32)};
     static final String types[] =
             {"Only chars", "Only numbers", "Only symbols", "Chars + numbers", "Chars + symbols","Numbers + symbols","Everything"};
+
 
     @Override
     protected void onCreate(@Nullable Bundle savedInstanceState) {
@@ -124,7 +132,6 @@ public class NewKeyActivity extends AppCompatActivity implements IOnAsyncTaskCom
             public void onNothingSelected(AdapterView<?> adapterView) { keyMetadata.setType(null); }
         });
 
-
         buttonCreate.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
@@ -140,19 +147,28 @@ public class NewKeyActivity extends AppCompatActivity implements IOnAsyncTaskCom
 
     @Override
     public void onKeyGenerated(String key) {
-        KeyData keyData = new KeyData();
-        keyData.setNameID(editTextIDName.getText().toString());
-        if(editTextUser.getText() != null) keyData.setUser(editTextUser.getText().toString());
-        if(editTextBrief.getText() != null) keyData.setBrief(editTextBrief.getText().toString());
-        keyData.setKeyMetadata(keyMetadata);
-        keyData.setKey(key);
-        keyData.setIdParent(parentId);
+
+        Calendar c = Calendar.getInstance();
+        c.setTimeInMillis(System.currentTimeMillis());
+        String timestamp = "\nLast update: " + new SimpleDateFormat("dd/MM/yyyy", Locale.ENGLISH).format(c.getTime());
+
+        Content content = new Content();
+        content.setPlainName(editTextIDName.getText().toString());
+        if(editTextUser.getText() != null) content.setPlainUser(editTextUser.getText().toString());
+        if(editTextBrief.getText() != null) content.setPlainBrief(editTextBrief.getText().toString() + timestamp);
+        content.setPlainKey(key);
+        content.setEnumLength(keyMetadata.getLength());
+        content.setEnumType(keyMetadata.getType());
+        content.setParentId(parentId);
+
 
         Database database = new Database(this);
         String msg;
-        if(database.insertKey(keyData)) msg = "Generated key: "+key;
+        if(database.insertKey(content)) msg = "Generated key: "+key;
         else msg = "Ouch.. Key cannot be stored in database";
         Toast.makeText(this,msg,Toast.LENGTH_LONG).show();
+        Firebase firebase = new Firebase(this);
+        firebase.pushEntry(content, ACTION_CREATE, false);
         finish();
     }
 
@@ -166,7 +182,6 @@ public class NewKeyActivity extends AppCompatActivity implements IOnAsyncTaskCom
 
         return ok;
     }
-
 
     @Override
     public boolean onOptionsItemSelected(MenuItem item) {

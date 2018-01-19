@@ -22,7 +22,10 @@ import org.json.JSONObject;
 import java.util.ArrayList;
 import revolhope.splanes.com.keystore.R;
 import revolhope.splanes.com.keystore.helpers.Database;
-import revolhope.splanes.com.keystore.model.HeaderWrapper;
+import revolhope.splanes.com.keystore.model.Content;
+import revolhope.splanes.com.keystore.model.Folder;
+import revolhope.splanes.com.keystore.model.Header;
+import revolhope.splanes.com.keystore.model.interfaces.HeaderVisitor;
 import revolhope.splanes.com.keystore.model.interfaces.IDialogCallbacks;
 
 /**
@@ -33,9 +36,7 @@ public class DialogMoveElement extends DialogFragment {
 
     private Database db;
     private int idShowing;
-    private int idClicked;
     private IDialogCallbacks callback;
-    private boolean isFolder;
     private Button btBack;
     @NonNull
     @Override
@@ -56,20 +57,21 @@ public class DialogMoveElement extends DialogFragment {
             @Override
             public void onClick(View view) {
                 if(idShowing != 0) {
-                    // getting parent's parent
-                    HeaderWrapper showing = db.getHeader(idShowing);
-
+                    
+                    Header showing = db.selectHeader(idShowing);
+                    if(showing == null) return;
                     moveKeyAdapter.generateDataSet(showing.getParentId());
                     idShowing = showing.getParentId();
+                    
                 }
             }
         });
 
-
-
-        HeaderWrapper hClicked = db.getHeader(idClicked);
+        final int id = getArguments().getInt("id");
+        final String name = getArguments().getString("name");
+        final boolean isFolder = getArguments().getBoolean("isFolder");
         String title;
-        if(hClicked != null) title = "Move '" + hClicked.getName() + "' to:";
+        if(getArguments() != null) title = "Move '" + name + "' to:";
         else title = "Move to:";
         Spannable span = new SpannableString(title);
         span.setSpan(new ForegroundColorSpan(getContext().getColor(R.color.colorAccent)),0,span.length(), Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
@@ -79,10 +81,20 @@ public class DialogMoveElement extends DialogFragment {
                     @Override
                     public void onClick(DialogInterface dialogInterface, int i) {
 
-                        if(isFolder)
-                            db.updateFolderParent(idClicked,idShowing);
-                        else
-                            db.updateKeyParent(idClicked,idShowing);
+                        if(isFolder){
+                            Folder folder = (Folder)db.selectHeader(id);
+                            if(folder != null){
+                                folder.setParentId(idShowing);
+                                db.updateFolder(folder);
+                            }
+                        }
+                        else{
+                            Content content = db.selectKey(id);
+                            if(content != null) {
+                                content.setParentId(idShowing);
+                                db.updateKey(content);
+                            }
+                        }
                         callback.onMovedElement();
                     }
                 });
@@ -93,9 +105,17 @@ public class DialogMoveElement extends DialogFragment {
 
     public void setCallback(IDialogCallbacks callback) { this.callback = callback; }
 
-    public void setIdClicked(int idClicked) { this.idClicked = idClicked; }
+    private HeaderVisitor<Boolean> headerVisitorFolder = new HeaderVisitor<Boolean>() {
+        @Override
+        public Boolean isFolder(Folder folder) {
+            return Boolean.TRUE;
+        }
 
-    public void setIsFolder(boolean isFolder) { this.isFolder = isFolder; }
+        @Override
+        public Boolean isContent(Content content) {
+            return Boolean.FALSE;
+        }
+    };
 
     private class MoveKeyAdapter extends RecyclerView.Adapter<MoveKeyAdapter.Holder>{
 
@@ -108,12 +128,14 @@ public class DialogMoveElement extends DialogFragment {
         private void generateDataSet(int parent){
 
             folders = new ArrayList<>();
-            for(HeaderWrapper header : db.getHeaders(parent)){
-                if(header.isFolder()){
+            ArrayList<Header> dataset = db.selectHeaders(parent);
+            if(dataset == null) return;
+            for(Header header : dataset){
+                if(header.checkClass(headerVisitorFolder)){
 
                     JSONObject json = new JSONObject();
                     try{
-                        json.put("name",header.getName());
+                        json.put("name",header.getPlainName());
                         json.put("id",header.getId());
                         folders.add(json);
 

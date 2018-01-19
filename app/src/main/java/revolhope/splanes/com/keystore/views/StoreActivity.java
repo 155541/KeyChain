@@ -7,6 +7,8 @@ import android.os.Bundle;
 import android.os.VibrationEffect;
 import android.os.Vibrator;
 import android.support.annotation.Nullable;
+import android.support.design.widget.BaseTransientBottomBar;
+import android.support.design.widget.Snackbar;
 import android.support.v7.app.AppCompatActivity;
 import android.support.v7.widget.LinearLayoutManager;
 import android.support.v7.widget.RecyclerView;
@@ -18,6 +20,8 @@ import android.widget.ImageView;
 import android.support.v7.widget.SearchView;
 import android.widget.Toast;
 
+import org.jetbrains.annotations.Contract;
+
 import java.util.ArrayList;
 
 import revolhope.splanes.com.keystore.R;
@@ -28,11 +32,13 @@ import revolhope.splanes.com.keystore.dialogs.DialogRenameFolder;
 import revolhope.splanes.com.keystore.dialogs.DialogShowKey;
 import revolhope.splanes.com.keystore.helpers.Database;
 import revolhope.splanes.com.keystore.helpers.Firebase;
-import revolhope.splanes.com.keystore.model.HeaderWrapper;
+import revolhope.splanes.com.keystore.model.Content;
+import revolhope.splanes.com.keystore.model.Folder;
+import revolhope.splanes.com.keystore.model.Header;
+import revolhope.splanes.com.keystore.model.interfaces.HeaderVisitor;
 import revolhope.splanes.com.keystore.model.interfaces.IDialogCallbacks;
 import revolhope.splanes.com.keystore.model.interfaces.IFirebaseCallback;
 import revolhope.splanes.com.keystore.model.interfaces.IOnClickCallback;
-import revolhope.splanes.com.keystore.model.KeyData;
 
 /**
  * Created by splanes on 2/1/18.
@@ -44,33 +50,48 @@ public class StoreActivity extends AppCompatActivity implements IDialogCallbacks
     private int parentID;
     private HeaderAdapter headerAdapter;
     private Database db;
-    private HeaderWrapper selectedHeader;
+    private Header selectedHeader;
     private Vibrator v;
     private Context context = this;
 
     private Firebase firebase;
+
+    private HeaderVisitor<Boolean> headerVisitorFolder = new HeaderVisitor<Boolean>() {
+        @Contract(pure = true)
+        @Override
+        public Boolean isFolder(Folder folder) {
+            return Boolean.TRUE;
+        }
+
+        @Contract(pure = true)
+        @Override
+        public Boolean isContent(Content content) {
+            return Boolean.FALSE;
+        }
+    };
+
 
     @Override
     protected void onCreate(@Nullable Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_store);
 
-        Toolbar toolbar = (Toolbar) findViewById(R.id.toolbar);
+        Toolbar toolbar = findViewById(R.id.toolbar);
         setSupportActionBar(toolbar);
 
         db = new Database(this);
         dialogCallbacks = this;
         parentID = 0;
 
-        RecyclerView recyclerView = (RecyclerView) findViewById(R.id.recyclerView);
+        RecyclerView recyclerView = findViewById(R.id.recyclerView);
         headerAdapter = new HeaderAdapter(this, this);
-        headerAdapter.setDataset(db.getHeaders(parentID));
+        headerAdapter.setDataSet(db.selectHeaders(parentID));
 
         recyclerView.setLayoutManager(new LinearLayoutManager(this));
         recyclerView.setAdapter(headerAdapter);
 
         v = (Vibrator) getSystemService(VIBRATOR_SERVICE);
-        ImageView ivNewFolder = (ImageView) findViewById(R.id.imageViewNewFolder);
+        ImageView ivNewFolder = findViewById(R.id.imageViewNewFolder);
         ivNewFolder.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
@@ -86,7 +107,7 @@ public class StoreActivity extends AppCompatActivity implements IDialogCallbacks
             }
         });
 
-        ImageView ivNewKey = (ImageView) findViewById(R.id.imageViewNewKey);
+        ImageView ivNewKey = findViewById(R.id.imageViewNewKey);
         ivNewKey.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
@@ -103,14 +124,15 @@ public class StoreActivity extends AppCompatActivity implements IDialogCallbacks
             }
         });
 
-        final SearchView searchView = (SearchView) findViewById(R.id.searchView);
+
+        final SearchView searchView = findViewById(R.id.searchView);
         searchView.setOnQueryTextListener(new SearchView.OnQueryTextListener() {
             @Override
             public boolean onQueryTextSubmit(String query) {
-                ArrayList<HeaderWrapper> searchedHeaders = db.findAll(query);
+                ArrayList<Header> searchedHeaders = db.findAll(query);
                 if(searchedHeaders == null) Toast.makeText(context,"No keys/folders matched..",Toast.LENGTH_LONG).show();
                 else{
-                    headerAdapter.setDataset(searchedHeaders);
+                    headerAdapter.setDataSet(searchedHeaders);
                     headerAdapter.notifyDataSetChanged();
                 }
                 return true;
@@ -128,6 +150,10 @@ public class StoreActivity extends AppCompatActivity implements IDialogCallbacks
                 return false;
             }
         });
+
+        firebase = new Firebase(context);
+        firebase.setCallback(this);
+        firebase.signIn();
     }
 
     @Override
@@ -136,44 +162,53 @@ public class StoreActivity extends AppCompatActivity implements IDialogCallbacks
         if(getSupportActionBar() != null){
             getSupportActionBar().setDisplayHomeAsUpEnabled(parentID!=0);
             if(selectedHeader != null){
-                getSupportActionBar().setTitle("/"+selectedHeader.getName());
+                getSupportActionBar().setTitle("/"+selectedHeader.getPlainName());
             }else{
                 getSupportActionBar().setTitle("KeyChain");
             }
         }
-        headerAdapter.setDataset(db.getHeaders(parentID));
+        headerAdapter.setDataSet(db.selectHeaders(parentID));
         headerAdapter.notifyDataSetChanged();
     }
+
+    // $$$$$$$$$$$$$$$$$$$$$$$$$$$    CREATE FOLDER    $$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$
 
     @Override
     public void onCreateFolder(String name) {
 
         Database db = new Database(this);
-        if(db.insertFolder(name,parentID)){
-            headerAdapter.setDataset(db.getHeaders(parentID));
+        Folder folder = new Folder();
+        folder.setParentId(parentID);
+        folder.setPlainName(name);
+        if(db.insertFolder(folder)){
+            headerAdapter.setDataSet(db.selectHeaders(parentID));
             headerAdapter.notifyDataSetChanged();
         }else{
             Toast.makeText(this, "Ouch..Something went wrong", Toast.LENGTH_LONG).show();
         }
     }
 
-    @Override
-    public void onHeaderHolderClick(HeaderWrapper object) {
+    // $$$$$$$$$$$$$$$$$$$$$$$$$$    HEADER'S ON CLICK     $$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$
 
-        if(object.isFolder()) {
+    @Override
+    public void onHeaderHolderClick(Header object) {
+
+        boolean isFolder = object.checkClass(headerVisitorFolder);
+
+        if(isFolder) {
             selectedHeader = object;
             parentID = object.getId();
             onResume();
         }else{
             DialogShowKey dialogShowKey = new DialogShowKey();
-            KeyData keyData = db.getKey(object.getId());
-            dialogShowKey.setKeyData(keyData);
+            Content content = db.selectKey(object.getId());
+            dialogShowKey.setKeyData(content);
             dialogShowKey.show(getSupportFragmentManager(),"ShowKeyDialog");
         }
     }
 
     @Override
-    public void onHeaderHolderLongClick(HeaderWrapper object) {
+    public void onHeaderHolderLongClick(Header object) {
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             v.vibrate(VibrationEffect.createOneShot(50, 100));
@@ -181,35 +216,40 @@ public class StoreActivity extends AppCompatActivity implements IDialogCallbacks
             v.vibrate(50);
         }
         selectedHeader = object;
+        parentID = object.getParentId();
         DialogHeaderAction dialogHeaderAction = new DialogHeaderAction();
         dialogHeaderAction.setCallback(this);
         Bundle bundle = new Bundle();
         bundle.putInt("id",object.getId());
-        bundle.putBoolean("isFolder",object.isFolder());
-        bundle.putString("name",object.getName());
+        bundle.putBoolean("isFolder",object.checkClass(headerVisitorFolder));
+        bundle.putString("name",object.getPlainName());
+        
         dialogHeaderAction.setArguments(bundle);
         dialogHeaderAction.show(getSupportFragmentManager(),"DialogHeaderAction");
     }
 
+    // $$$$$$$$$$$$$$$$$$$$$$$$$$$$$$    DROP HEADER    $$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$
+
     @Override
     public void onDropHeaderWrapper() {
 
-        if(selectedHeader.isFolder()){
+        if(selectedHeader.checkClass(headerVisitorFolder)){
 
-            db.dropFolder(selectedHeader.getId());
-
+            db.removeFolder((Folder)selectedHeader);
             onResume();
 
             if(parentID == 0) selectedHeader = null;
             else{
-                selectedHeader = db.getHeader(parentID);
+                selectedHeader = db.selectHeader(parentID);
             }
-
         }else{
-            db.dropKey(selectedHeader.getId());
+            if(!db.removeKey(selectedHeader.getId()))
+                Toast.makeText(this,"Ouch.. we've got some problems while dropping", Toast.LENGTH_SHORT).show();
             onResume();
         }
     }
+
+    // $$$$$$$$$$$$$$$$$$$$$$$$$$$$$    RENAME FOLDER    $$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$
 
     @Override
     public void onRenameFolder(int id, String oldName) {
@@ -219,6 +259,7 @@ public class StoreActivity extends AppCompatActivity implements IDialogCallbacks
         Bundle bundle = new Bundle();
         bundle.putInt("id",id);
         bundle.putString("oldName",oldName);
+        bundle.putInt("idParent",parentID);
         dialogRenameFolder.setCallback(dialogCallbacks);
         dialogRenameFolder.setArguments(bundle);
         dialogRenameFolder.show(getSupportFragmentManager(),"RenameFolderDialog");
@@ -226,16 +267,21 @@ public class StoreActivity extends AppCompatActivity implements IDialogCallbacks
     }
 
     @Override
-    public void onRenamedFolder(int id, String newName) {
-        String msg =  db.updateFolderName(id,newName) ? "The name folder was updated correctly" : "Ouch.. Something went wrong.. try again";
+    public void onRenamedFolder(Folder folder) {
+
+        String msg =  db.updateFolder(folder) ? "The name folder was updated correctly" : "Ouch.. Something went wrong.. try again";
         Toast.makeText(this, msg, Toast.LENGTH_SHORT).show();
         onResume();
     }
+
+    // $$$$$$$$$$$$$$$$$$$$$$$$$$$$$$    MOVE HEADER    $$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$
 
     @Override
     public void onMovedElement() {
         onResume();
     }
+
+    // $$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$    MENU    $$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$
 
     @Override
     public boolean onCreateOptionsMenu(Menu menu) {
@@ -255,45 +301,46 @@ public class StoreActivity extends AppCompatActivity implements IDialogCallbacks
         }
         if(id == android.R.id.home){
 
-            if (selectedHeader != null )parentID = selectedHeader.getParentId();
+            if (selectedHeader != null ) parentID = selectedHeader.getParentId();
+            
             if(parentID == 0) selectedHeader = null;
             else{
-                selectedHeader = db.getHeader(parentID);
+                selectedHeader = db.selectHeader(parentID);
             }
             onResume();
         }
         if(id == R.id.action_push_test){
-
-            firebase = new Firebase(this);
-            firebase.setCallback(this);
-            firebase.signIn();
         }
 
         return true;
     }
 
+
+    // $$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$    FIREBASE  //todo: to implement  $$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$
+
     @Override
     public void onSignIn(boolean result) {
-
-        /*
-        FolderData folder = new FolderData();
-        folder.setId(1);
-        folder.setIdParent(0);
-        folder.setToEncodeName(new byte[]{0xa});
-        firebase.pushFolder(folder);
-        */
-
         if(!result){
-            // TODO: DIALOG-> INDICAR QUE NO HI HA CONN AMB FIREBASE I NO ES SYNC LES DADES
+            onSynchronized(false);
         }
         else{
-            // TODO OBTENIR DATASET DE FIREBASE,
+            Snackbar.make(findViewById(R.id.root), "Starting sync", BaseTransientBottomBar.LENGTH_SHORT)
+                    .show();
             firebase.synchronize();
         }
     }
 
     @Override
-    public void onSynchronized(ArrayList<HeaderWrapper> finalDataset) {
+    public void onSynchronized(Boolean sync) {
 
+        String msg = sync ?
+                "All changes have been synchronized. All up to date ;)" :
+                "Ouch.. We've got some problems during synchronization.\nData is not sync., try later";
+        Snackbar.make(findViewById(R.id.root), msg, BaseTransientBottomBar.LENGTH_INDEFINITE)
+                .setAction("OK", new View.OnClickListener() {
+                    @Override
+                    public void onClick(View view) {}
+                })
+                .show();
     }
 }
